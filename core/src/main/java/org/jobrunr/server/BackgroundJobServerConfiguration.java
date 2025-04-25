@@ -107,7 +107,8 @@ public class BackgroundJobServerConfiguration {
      * @return the same configuration instance which provides a fluent api
      */
     public BackgroundJobServerConfiguration andServerTimeoutPollIntervalMultiplicand(int multiplicand) {
-        if (multiplicand < 4) throw new IllegalArgumentException("The smallest possible ServerTimeoutPollIntervalMultiplicand is 4 (4 is also the default)");
+        //Ov
+        // if (multiplicand < 4) throw new IllegalArgumentException("The smallest possible ServerTimeoutPollIntervalMultiplicand is 4 (4 is also the default)");
         this.serverTimeoutPollIntervalMultiplicand = multiplicand;
         return this;
     }

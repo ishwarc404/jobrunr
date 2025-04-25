@@ -860,4 +860,9 @@ public class ElasticSearchStorageProvider extends AbstractStorageProvider implem
         return null;
     }
 
+    public Map<Long, Long> getRecurringJobsHash() {
+        return null;
+    }
+
+
 }

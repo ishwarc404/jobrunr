@@ -226,14 +226,6 @@ public class JobTable extends Sql<Job> {
     private Job toJob(SqlResultSet resultSet) {
         String jobAsJson = "UNKNOWN";
         try {
-            Class.forName("org.jobrunr.jobs.states.ScheduledState");
-            System.out.println("✅ ScheduledState is loadable at runtime!");
-        } catch (ClassNotFoundException e) {
-            System.err.println("🚨 ScheduledState is NOT loadable at runtime! Classpath problem.");
-            e.printStackTrace();
-        }
-        
-        try {
             jobAsJson = resultSet.asString("jobAsJson");
             return jobMapper.deserializeJob(jobAsJson);
         } catch (Exception e) {

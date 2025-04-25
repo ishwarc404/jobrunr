@@ -98,6 +98,7 @@ public class ServerZooKeeper implements Runnable {
         storageProvider.signalBackgroundJobServerAlive(serverStatus);
         cpuAllocationIrregularity(lastSignalAlive, serverStatus.getLastHeartbeat()).ifPresent(amountOfSeconds -> dashboardNotificationManager.notify(new CpuAllocationIrregularityNotification(amountOfSeconds)));
         lastSignalAlive = serverStatus.getLastHeartbeat();
+        System.out.println("["+ serverStatus.getName() +"] - I AM ALIVE - " + serverStatus.getId() + " - " + serverStatus.getLastHeartbeat());
     }
 
     private void deleteServersThatTimedOut() {
@@ -121,7 +122,7 @@ public class ServerZooKeeper implements Runnable {
             this.masterId = longestRunningBackgroundJobServerId;
             if (masterId.equals(backgroundJobServer.getId())) {
                 backgroundJobServer.setIsMaster(true);
-                LOGGER.info("Server {} is master (this BackgroundJobServer)", masterId);
+                LOGGER.info("[ MASTER 👑] - Server {} is master (this BackgroundJobServer)", masterId);
             } else {
                 backgroundJobServer.setIsMaster(false);
                 LOGGER.info("Server {} is master (another BackgroundJobServer)", masterId);

@@ -731,4 +731,9 @@ public class LettuceRedisStorageProvider extends AbstractStorageProvider impleme
         return null;
     }
 
+    public Map<Long, Long> getRecurringJobsHash() {
+        return null;
+    }
+
+
 }

@@ -233,18 +233,12 @@ public interface StorageProvider extends AutoCloseable {
     int deleteRecurringJob(String id);
 
 
-    Long recurringJobsUpdatedHash(long offset, long limit);
+    //Custom Methods
 
-    /**
-     * Returns a page of {@link RecurringJob RecurringJobs}.
-     *
-     * @param offset the offset to start from
-     * @param limit  the maximum amount of RecurringJobs to return
-     * @return a list {@link RecurringJob RecurringJobs}.
-     */
-    List<RecurringJob> getRecurringJobsPage(long offset, long limit);
-
-
+    Long recurringJobsUpdatedHash(long windowStart, long windowEnd);
+    List<RecurringJob> getRecurringJobsPage(long windowStart, long windowEnd);
+    Map<Long, Long> getRecurringJobsHash();
+    
     /**
      * Returns the statistics of the jobs (amount enqueued, amount scheduled, ...)
      * <em><strong>Important</strong>: in most cases, this results in a intensive query. JobRunr is designed to not call this method too often to limit

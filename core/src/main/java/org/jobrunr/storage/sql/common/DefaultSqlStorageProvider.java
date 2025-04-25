@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.LinkedHashMap;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -189,6 +190,7 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
 
     @Override
     public Job save(Job jobToSave) {
+        System.out.print("RUNNING SINGLE jobToSave = " + jobToSave.getId() + "\n");
         try (final Connection conn = dataSource.getConnection(); final Transaction transaction = new Transaction(conn)) {
             final Job savedJob = jobTable(conn).save(jobToSave);
             transaction.commit();
@@ -203,8 +205,17 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     public List<Job> save(List<Job> jobs) {
         try (final Connection conn = dataSource.getConnection(); final Transaction transaction = new Transaction(conn)) {
             try {
+                System.out.print("RUNNING MULTIPLE jobToSave multiple jobs = " + jobs.size() + " \n");
+                long commitStart = System.currentTimeMillis();
                 final List<Job> savedJobs = jobTable(conn).save(jobs);
+                long commitEnd = System.currentTimeMillis();
+                System.out.print("SAVE TIME: " + (commitEnd - commitStart) + "ms\n");
+                System.out.print("RUNNING MULTIPLE JOBS SAVED! \n");
+                commitStart = System.currentTimeMillis();
                 transaction.commit();
+                commitEnd = System.currentTimeMillis();
+                System.out.print("COMMIT TIME: " + (commitEnd - commitStart) + "ms\n");
+                System.out.print("RUNNING MULTIPLE JOBS COMMITTED! \n");
                 notifyJobStatsOnChangeListenersIf(!jobs.isEmpty());
                 return savedJobs;
             } catch (ConcurrentJobModificationException e) {
@@ -351,7 +362,7 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
             while (rs.next()) {
                 String id = rs.getString("recurringJobId");
                 long cnt = rs.getLong("jobCount");
-                System.out.println("  ↳ row: " + id + " → " + cnt);
+                // System.out.println("  ↳ row: " + id + " → " + cnt);
                 counts.put(id, cnt);
             }
             System.out.println("recurringJobsExists returned " + counts.size() + " entries");
@@ -394,6 +405,49 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
             throw new StorageException(e);
         }
     }
+
+    public Map<Long, Long> getRecurringJobsHash() {
+        String sql =
+        "WITH RECURSIVE\n" +
+        "  first_ts AS (\n" +
+        "    SELECT MIN(createdAt) AS ts, MAX(createdAt) AS max_ts FROM jobrunr_recurring_jobs\n" +
+        "  ),\n" +
+        "  bucket_defs AS (\n" +
+        "    SELECT ts, CEIL((max_ts - ts) / 600000) AS total_buckets FROM first_ts\n" +
+        "  ),\n" +
+        "  seq AS (\n" +
+        "    SELECT 0 AS bucket_idx FROM bucket_defs\n" +
+        "    UNION ALL\n" +
+        "    SELECT bucket_idx + 1 FROM seq JOIN bucket_defs ON bucket_idx + 1 < bucket_defs.total_buckets\n" +
+        "  ),\n" +
+        "  aggregates AS (\n" +
+        "    SELECT (j.createdAt - f.ts) DIV 600000 AS bucket_idx, SUM(j.createdAt) AS window_hash\n" +
+        "    FROM jobrunr_recurring_jobs j CROSS JOIN first_ts f\n" +
+        "    GROUP BY bucket_idx\n" +
+        "  )\n" +
+        "SELECT (f.ts + s.bucket_idx * 600000) AS window_start_epoch, COALESCE(a.window_hash, 0) AS window_hash\n" +
+        "FROM seq s CROSS JOIN first_ts f LEFT JOIN aggregates a USING(bucket_idx)\n" +
+        "ORDER BY s.bucket_idx";
+    
+        Map<Long, Long> windowHashMap = new LinkedHashMap<>();
+    
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+    
+            while (rs.next()) {
+                long windowStartEpoch = rs.getLong("window_start_epoch");
+                long windowHash = rs.getLong("window_hash");
+                windowHashMap.put(windowStartEpoch, windowHash);
+            }
+    
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    
+        return windowHashMap;
+    }
+    
 
 
     @Override

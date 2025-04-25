@@ -646,4 +646,9 @@ public class JedisRedisStorageProvider extends AbstractStorageProvider implement
         return null;
     }
 
+    public Map<Long, Long> getRecurringJobsHash() {
+        return null;
+    }
+
+
 }

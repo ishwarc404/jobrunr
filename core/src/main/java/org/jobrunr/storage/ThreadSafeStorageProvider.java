@@ -236,4 +236,8 @@ public class ThreadSafeStorageProvider implements StorageProvider {
         return storageProvider.recurringJobsExists(states);
     }
 
+    public Map<Long, Long> getRecurringJobsHash() {
+        return storageProvider.getRecurringJobsHash();
+    }
+
 }

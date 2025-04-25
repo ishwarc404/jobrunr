@@ -347,6 +347,7 @@ public class InMemoryStorageProvider extends AbstractStorageProvider {
     public Long recurringJobsUpdatedHash(long offset, long limit) {
         return null;
     }
+
     public List<RecurringJob> getRecurringJobsPage(long offset, long limit) {
         return null;
     }
@@ -354,5 +355,10 @@ public class InMemoryStorageProvider extends AbstractStorageProvider {
     public Map<String, Long> recurringJobsExists(StateName... states) {
         return null;
     }
+
+    public Map<Long, Long> getRecurringJobsHash() {
+        return null;
+    }
+
 
 }

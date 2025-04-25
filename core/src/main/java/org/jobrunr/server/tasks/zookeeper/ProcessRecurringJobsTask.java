@@ -18,14 +18,17 @@ import static org.jobrunr.jobs.states.StateName.SCHEDULED;
 
 public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
-    private final Map<String, Instant> recurringJobRuns;
-    private RecurringJobsResult recurringJobs;
+    private final Map<String, Instant> recurringJobRuns; 
+    private RecurringJobsResult recurringJobs; // This stores all the millions of jobs
+    private Map<Long, Long> recurringJobHash; // This will store the epoch time of window start of X amount time, and the hash of the jobs in that window
+    //If the window start time's hash is same as in memory, we don't need to fetch the jobs again
     Map<String,Long> existingById;
 
 
     public ProcessRecurringJobsTask(BackgroundJobServer backgroundJobServer) {
         super(backgroundJobServer);
         this.recurringJobRuns = new HashMap<>();
+        this.recurringJobHash = new HashMap<>();
         this.recurringJobs = new RecurringJobsResult();
     }
 
@@ -35,8 +38,16 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
         Instant from = runStartTime();
         Instant upUntil = runStartTime().plus(backgroundJobServerConfiguration().getPollInterval());
+        long fetchStart = System.currentTimeMillis();
         List<RecurringJob> recurringJobs = getRecurringJobs();
-        existingById = fetchExistingCounts();
+        long fetchEnd = System.currentTimeMillis();
+        System.out.println("🏳️ Fetching recurring jobs took: " + (fetchEnd - fetchStart) + "ms");
+        System.out.println("🏳️ Recurring jobs size: " + recurringJobs.size());
+        
+        this.recurringJobHash = storageProvider.getRecurringJobsHash();
+
+
+        existingById = fetchExistingCounts(); //a bit heavy
         convertAndProcessManyJobs(recurringJobs,
                 recurringJob -> toScheduledJobs(recurringJob, from, upUntil),
                 totalAmountOfJobs -> LOGGER.debug("Found {} jobs to schedule from {} recurring jobs", totalAmountOfJobs, recurringJobs.size()));
@@ -53,6 +64,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     private List<RecurringJob> getRecurringJobs() {
         if (recurringJobs == null || recurringJobs.isEmpty()) {
             // first time, just fetch all
+            System.out.println("🏳️ 🏳️ 🏳️ 🏳️ First time fetching all recurring jobs");
             this.recurringJobs = storageProvider.getRecurringJobs();
             return recurringJobs;
         }
@@ -93,7 +105,9 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     
             System.out.println("🏳️ LOCAL page size: " + localSlice  .size());
             long localHash = calculateHash(localSlice);
-            long dbHash    = storageProvider.recurringJobsUpdatedHash(windowStart, windowEnd);
+            //lookup the windowStart in recurringJobHash
+            long dbHash = recurringJobHash.getOrDefault(windowStart, 0L);
+            // long dbHash    = storageProvider.recurringJobsUpdatedHash(windowStart, windowEnd);
             if (localHash != dbHash) {
                 System.out.println("====== Hash at offset: " + localHash);
                 System.out.println("====== Hash from db: " + dbHash);
@@ -221,7 +235,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
             LOGGER.info("Recurring job '{}' is already scheduled, enqueued or processing. Run will be skipped as job is taking longer than given CronExpression or Interval.", recurringJob.getJobName());
             jobsToSchedule.clear();
         } else if (jobsToSchedule.size() == 1) {
-            System.out.println("🏳️ Recurring job '" + recurringJob.getId() + "has intances in jobrunr_jobs? - " + isAlreadyScheduledEnqueuedOrProcessing(recurringJob));
+            // System.out.println("🏳️ Recurring job '" + recurringJob.getId() + "has intances in jobrunr_jobs? - " + isAlreadyScheduledEnqueuedOrProcessing(recurringJob));
             LOGGER.debug("Recurring job '{}' resulted in 1 scheduled job.", recurringJob.getJobName());
         }
         registerRecurringJobRun(recurringJob, upUntil);
@@ -237,7 +251,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         Map<String, Long> existingById = new HashMap<>();
         System.out.println("🏳️ Fetching existing counts...");
         existingById = storageProvider.recurringJobsExists(SCHEDULED, ENQUEUED, PROCESSING);
-        System.out.println("🏳️ Existing counts: " + existingById);
+        // System.out.println("🏳️ Existing counts: " + existingById);
         return existingById;
     }
 

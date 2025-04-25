@@ -218,7 +218,10 @@ public class Sql<T> {
     }
 
     public void insertAll(List<T> batchCollection, String statement) throws SQLException {
+        long transaction = System.currentTimeMillis();
         int[] result = insertOrUpdateAll(batchCollection, INSERT + statement);
+        long duration = System.currentTimeMillis() - transaction;
+        System.out.println("[DB BATCH WRITE] - Inserted " + batchCollection.size() + " items in " + duration + "ms");
         if (result.length != batchCollection.size()) {
             throw shouldNotHappenException("Could not insert or update all objects - different result size: originalCollectionSize=" + batchCollection.size() + "; " + Arrays.toString(result));
         } else if (stream(result).anyMatch(i -> i < 1 && i != Statement.SUCCESS_NO_INFO)) {
