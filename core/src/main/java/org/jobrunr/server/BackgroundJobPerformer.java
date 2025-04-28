@@ -76,7 +76,7 @@ public class BackgroundJobPerformer implements Runnable {
 
             job.startProcessingOn(backgroundJobServer);
             saveAndRunStateRelatedJobFilters(job);
-            LOGGER.debug("Job(id={}, jobName='{}') processing started", job.getId(), job.getJobName());
+            LOGGER.debug("Job(id={}, recurringJobId={}, jobName='{}') processing started", job.getId(), job.getRecurringJobId(), job.getJobName());
             return job.hasState(PROCESSING);
         } catch (ConcurrentJobModificationException e) {
             // processing already started on other server
@@ -89,7 +89,7 @@ public class BackgroundJobPerformer implements Runnable {
         try {
             JobRunrDashboardLogger.setJob(job);
             backgroundJobServer.getJobSteward().startProcessing(job, Thread.currentThread());
-            LOGGER.trace("Job(id={}, jobName='{}') is running", job.getId(), job.getJobName());
+            LOGGER.trace("Job(id={}, recurringJobId={}, jobName='{}') is running", job.getId(), job.getRecurringJobId(), job.getJobName());
             jobPerformingFilters.runOnJobProcessingFilters();
             BackgroundJobRunner backgroundJobRunner = backgroundJobServer.getBackgroundJobRunner(job);
             backgroundJobRunner.run(job);
@@ -105,7 +105,7 @@ public class BackgroundJobPerformer implements Runnable {
 
     private void updateJobStateToSucceededAndRunJobFilters() {
         try {
-            LOGGER.debug("Job(id={}, jobName='{}') processing succeeded", job.getId(), job.getJobName());
+            LOGGER.debug("Job(id={}, recurringJobId={}, jobName='{}') processing succeeded", job.getId(), job.getRecurringJobId(), job.getJobName());
             job.succeeded();
             saveAndRunStateRelatedJobFilters(job);
         } catch (IllegalJobStateChangeException ex) {
@@ -115,7 +115,7 @@ public class BackgroundJobPerformer implements Runnable {
                 throw ex;
             }
         } catch (Exception badException) {
-            LOGGER.error("ERROR - could not update job(id={}, jobName='{}') to SUCCEEDED state", job.getId(), job.getJobName(), badException);
+            LOGGER.error("ERROR - could not update job(id={}, recurringJobId={}, jobName='{}') to SUCCEEDED state", job.getId(),  job.getRecurringJobId(), job.getJobName(), badException);
         }
     }
 
@@ -125,9 +125,9 @@ public class BackgroundJobPerformer implements Runnable {
             job.failed(message, actualException);
             saveAndRunStateRelatedJobFilters(job);
             if (job.getState() == FAILED) {
-                LOGGER.error("Job(id={}, jobName='{}') processing failed: {}", job.getId(), job.getJobName(), message, actualException);
+                LOGGER.error("Job(id={}, recurringJobId={}, jobName='{}') processing failed: {}", job.getId(), job.getRecurringJobId(), job.getJobName(), message, actualException);
             } else {
-                LOGGER.warn("Job(id={}, jobName='{}') processing failed: {}", job.getId(), job.getJobName(), message, actualException);
+                LOGGER.warn("Job(id={}, recurringJobId={}, jobName='{}') processing failed: {}", job.getId(), job.getRecurringJobId(), job.getJobName(), message, actualException);
             }
         } catch (IllegalJobStateChangeException ex) {
             if (ex.getFrom() == DELETED) {
@@ -136,7 +136,7 @@ public class BackgroundJobPerformer implements Runnable {
                 throw ex;
             }
         } catch (Exception badException) {
-            LOGGER.error("ERROR - could not update job(id={}, jobName='{}') to FAILED state", job.getId(), job.getJobName(), badException);
+            LOGGER.error("ERROR - could not update job(id={}, recurringJobId={}, jobName='{}') to FAILED state", job.getId(), job.getRecurringJobId(), job.getJobName(), badException);
         }
     }
 

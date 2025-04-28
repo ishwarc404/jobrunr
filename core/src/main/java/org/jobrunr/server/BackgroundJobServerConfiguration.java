@@ -19,7 +19,7 @@ import static org.jobrunr.utils.StringUtils.isNullOrEmpty;
 public class BackgroundJobServerConfiguration {
 
     public static final Duration DEFAULT_POLL_INTERVAL = Duration.ofSeconds(15);
-    public static final int DEFAULT_SERVER_TIMEOUT_POLL_INTERVAL_MULTIPLICAND = 4;
+    public static final int DEFAULT_SERVER_TIMEOUT_POLL_INTERVAL_MULTIPLICAND = 2;
     public static final int DEFAULT_PAGE_REQUEST_SIZE = 1000;
     public static final Duration DEFAULT_DELETE_SUCCEEDED_JOBS_DURATION = Duration.ofHours(36);
     public static final Duration DEFAULT_PERMANENTLY_DELETE_JOBS_DURATION = Duration.ofHours(72);
@@ -107,8 +107,7 @@ public class BackgroundJobServerConfiguration {
      * @return the same configuration instance which provides a fluent api
      */
     public BackgroundJobServerConfiguration andServerTimeoutPollIntervalMultiplicand(int multiplicand) {
-        //Ov
-        // if (multiplicand < 4) throw new IllegalArgumentException("The smallest possible ServerTimeoutPollIntervalMultiplicand is 4 (4 is also the default)");
+        if (multiplicand < 2) throw new IllegalArgumentException("The smallest possible ServerTimeoutPollIntervalMultiplicand is 2 (2 is also the default)");
         this.serverTimeoutPollIntervalMultiplicand = multiplicand;
         return this;
     }

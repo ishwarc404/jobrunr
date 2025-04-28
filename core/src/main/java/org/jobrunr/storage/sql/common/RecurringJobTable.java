@@ -47,12 +47,6 @@ public class RecurringJobTable extends Sql<RecurringJob> {
                 .map(this::toRecurringJob)
                 .collect(toList());
     }
-
-    // public List<RecurringJob> selectFixedPage(int offset, int limit) {
-    //     return select("jobAsJson FROM jobrunr_recurring_jobs ORDER BY createdAt ASC LIMIT " + limit + " OFFSET " + offset)
-    //             .map(this::toRecurringJob)
-    //             .collect(Collectors.toList());
-    // }
     
     /**
      * Fetch all jobs whose createdAt (epoch seconds)

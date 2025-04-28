@@ -44,7 +44,11 @@ import static org.jobrunr.storage.StorageProviderUtils.DatabaseOptions.SKIP_CREA
 import static org.jobrunr.utils.resilience.RateLimiter.Builder.rateLimit;
 import static org.jobrunr.utils.resilience.RateLimiter.SECOND;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class DefaultSqlStorageProvider extends AbstractStorageProvider implements SqlStorageProvider {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultSqlStorageProvider.class);
 
     protected final DataSource dataSource;
     protected final Dialect dialect;
@@ -190,7 +194,6 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
 
     @Override
     public Job save(Job jobToSave) {
-        System.out.print("RUNNING SINGLE jobToSave = " + jobToSave.getId() + "\n");
         try (final Connection conn = dataSource.getConnection(); final Transaction transaction = new Transaction(conn)) {
             final Job savedJob = jobTable(conn).save(jobToSave);
             transaction.commit();
@@ -205,17 +208,11 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     public List<Job> save(List<Job> jobs) {
         try (final Connection conn = dataSource.getConnection(); final Transaction transaction = new Transaction(conn)) {
             try {
-                System.out.print("RUNNING MULTIPLE jobToSave multiple jobs = " + jobs.size() + " \n");
-                long commitStart = System.currentTimeMillis();
+                long start = System.currentTimeMillis();
                 final List<Job> savedJobs = jobTable(conn).save(jobs);
-                long commitEnd = System.currentTimeMillis();
-                System.out.print("SAVE TIME: " + (commitEnd - commitStart) + "ms\n");
-                System.out.print("RUNNING MULTIPLE JOBS SAVED! \n");
-                commitStart = System.currentTimeMillis();
+                long duration = System.currentTimeMillis() - start;
+                LOGGER.info("Inserted: " + jobs.size() + " jobs in: " + duration + "ms");
                 transaction.commit();
-                commitEnd = System.currentTimeMillis();
-                System.out.print("COMMIT TIME: " + (commitEnd - commitStart) + "ms\n");
-                System.out.print("RUNNING MULTIPLE JOBS COMMITTED! \n");
                 notifyJobStatsOnChangeListenersIf(!jobs.isEmpty());
                 return savedJobs;
             } catch (ConcurrentJobModificationException e) {
@@ -343,7 +340,6 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
 
-    // @Override
     public Map<String, Long> recurringJobsExists(StateName... states) {
     
         String sql =
@@ -351,8 +347,6 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
             "  FROM jobrunr_jobs " +
             " WHERE state IN ('SCHEDULED','ENQUEUED','PROCESSING','SUCCEEDED') " +
             " GROUP BY recurringJobId";
-    
-        System.out.println("SQL → " + sql);
     
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
@@ -362,14 +356,12 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
             while (rs.next()) {
                 String id = rs.getString("recurringJobId");
                 long cnt = rs.getLong("jobCount");
-                // System.out.println("  ↳ row: " + id + " → " + cnt);
                 counts.put(id, cnt);
             }
-            System.out.println("recurringJobsExists returned " + counts.size() + " entries");
             return counts;
     
         } catch (SQLException e) {
-            System.out.println("Error running recurringJobsExists");
+            LOGGER.error("Error running recurringJobsExists");
             e.printStackTrace();
             throw new StorageException(e);
         }

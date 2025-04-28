@@ -38,12 +38,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
         Instant from = runStartTime();
         Instant upUntil = runStartTime().plus(backgroundJobServerConfiguration().getPollInterval());
-        long fetchStart = System.currentTimeMillis();
         List<RecurringJob> recurringJobs = getRecurringJobs();
-        long fetchEnd = System.currentTimeMillis();
-        System.out.println("🏳️ Fetching recurring jobs took: " + (fetchEnd - fetchStart) + "ms");
-        System.out.println("🏳️ Recurring jobs size: " + recurringJobs.size());
-        
         this.recurringJobHash = storageProvider.getRecurringJobsHash();
 
 
@@ -63,34 +58,36 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
     private List<RecurringJob> getRecurringJobs() {
         if (recurringJobs == null || recurringJobs.isEmpty()) {
-            // first time, just fetch all
-            System.out.println("🏳️ 🏳️ 🏳️ 🏳️ First time fetching all recurring jobs");
+            // first time, just fetch all from the database
+            LOGGER.info("Boot up time, fetching all recurring jobs.");
+            long fetchStart = System.currentTimeMillis();
             this.recurringJobs = storageProvider.getRecurringJobs();
+            long fetchEnd = System.currentTimeMillis();
+            LOGGER.info("First time fetch duration: " + (fetchEnd - fetchStart) + "ms");
+            LOGGER.info("First time fetch size: " + recurringJobs.size());
             return recurringJobs;
         }
 
-        // Added this logic to avoid refetching even the hash. 
+        // This logic to avoid refetching even the hash. 
         if (!storageProvider.recurringJobsUpdated(recurringJobs.getLastModifiedHash())) {
-            System.out.println("🏳️ NO NEED TO FETCH");
             return recurringJobs;
         }
     
         // make a mutable copy and sort by createdAt ascending
         List<RecurringJob> mutable = new ArrayList<>(recurringJobs);
-        // no need to do as it is already sorted from SQL
-        // mutable.sort(Comparator.comparingLong(j -> j.getCreatedAt().toEpochMilli()));
-    
+
+        
         // determine our paging window: from the earliest job we know about…
         long windowStart = mutable.get(0).getCreatedAt().toEpochMilli();
-        // …up to now, in 5‑minute increments
+        // …up to now, in 10‑minute increments
         long now      = System.currentTimeMillis();
         long interval = 10 * 60 * 1000; // 10 minutes
-        // Boolean fetchJobs = true;
+
         // I'm not sure if this is the best way to do this, unable to check if it works, but check once
         while (windowStart < now ) {
             long windowEnd = Math.min(windowStart + interval, now);
     
-            System.out.println("🏳️ Window: " + windowStart + " to " + windowEnd);
+            LOGGER.info("Page Window: " + windowStart + " to " + windowEnd);
             // pick out only the local jobs in this time slice
             // copy into final locals for the lambda
             final long ws = windowStart;
@@ -103,28 +100,21 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
                 })
                 .collect(Collectors.toList());
     
-            System.out.println("🏳️ LOCAL page size: " + localSlice  .size());
             long localHash = calculateHash(localSlice);
             //lookup the windowStart in recurringJobHash
             long dbHash = recurringJobHash.getOrDefault(windowStart, 0L);
+            // The below line is commented out because we are not using the database to calculate the hash
             // long dbHash    = storageProvider.recurringJobsUpdatedHash(windowStart, windowEnd);
             if (localHash != dbHash) {
-                System.out.println("====== Hash at offset: " + localHash);
-                System.out.println("====== Hash from db: " + dbHash);
-                System.out.println("🚨 Hash mismatch at offset " + windowStart + ": will fetch fresh page.");
-            } else {
-                System.out.println("====== Hash at offset: " + localHash);
-                System.out.println("====== Hash from db: " + dbHash);
-                System.out.println("✅ Hash matches at offset " + windowStart + ": no need to fetch.");
+                LOGGER.info("🚨 Hash mismatch at offset: " + windowStart + ". Will fetch fresh page.");
             }
 
             if (localHash != dbHash) {
-
-                // fetch only that 5‑minute batch
+                // fetch only that N‑minute batch
                 List<RecurringJob> fresh = storageProvider.getRecurringJobsPage(windowStart, windowEnd);
-                System.out.println("🏳️ Fresh page size: " + fresh.size());
+                LOGGER.info("Fresh page size: " + fresh.size());
                 // replace in existing recurringJobs list
-                    // find the range in the current list that belongs to [ws,we)
+                // find the range in the current list that belongs to [ws,we)
                 int startIdx = firstIndexOfTimestamp(mutable, windowStart);
                 int endIdx   = firstIndexOfTimestamp(mutable, windowEnd);
 
@@ -156,67 +146,6 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         return list.size();
     }
     
-    
-    // private List<RecurringJob> getRecurringJobs() {
-    //     if (recurringJobs == null || recurringJobs.isEmpty()) {
-    //         // first time - fetch everything
-    //         System.out.println("🏳️ 🏳️ 🏳️ 🏳️ First time fetching all recurring jobs");
-    //         this.recurringJobs = storageProvider.getRecurringJobs();
-    //         System.out.println("🏳️ First time fetch size: " + recurringJobs.size());
-    //         return this.recurringJobs;
-    //     }
-    
-    //     // A MUTABLE COPY
-    //     List<RecurringJob> mutableRecurringJobs = new ArrayList<>(recurringJobs);
-
-    //     int pageSize = 100;
-    //     int offset = 0;
-    //     int totalJobs = mutableRecurringJobs.size();
-    
-    //     while (offset < totalJobs) {            
-
-    //         List<RecurringJob> subList = mutableRecurringJobs.subList(offset, Math.min(offset + pageSize, totalJobs));
-    //         System.out.println("🏳️ Offset: " + offset + ", PageSize: " + pageSize + ", TotalJobs: " + totalJobs);
-    //         System.out.println("🏳️ Sublist size: " + subList.size());
-            
-    //         long localSubListHash = calculateHash(subList);
-    //         // Last page special case to check if we need to fetch fresh jobs
-    //         if (offset + pageSize >= totalJobs) {
-    //             // last page, remove limit
-    //             pageSize = 10000000; //We handle this as no limit in the SQL query - 10 million jobs, increase this if needed
-    //         }
-    //         long dbSubListHash = storageProvider.recurringJobsUpdatedHash(offset, pageSize);
-            
-    //         if (localSubListHash != dbSubListHash) {
-    //             System.out.println("🚨 Hash mismatch at offset " + offset + ": will fetch fresh page.");
-    //         } else {
-    //             System.out.println("✅ Hash matches at offset " + offset + ": no need to fetch.");
-    //         }
-
-    //         if (localSubListHash != dbSubListHash) {
-    //             // Fetch only this page fresh
-    //             List<RecurringJob> freshPage = storageProvider.getRecurringJobsPage(offset, pageSize); //pagesize is limit basically
-    
-    //             System.out.println("🏳️ Fresh page size: " + freshPage.size());
-    //             // replace in existing recurringJobs list
-    //             for (int i = 0; i < freshPage.size(); i++) {
-    //                 if (offset + i < mutableRecurringJobs.size()) {
-    //                     System.out.println("🏳️ Replacing job at index " + (offset + i));
-    //                     mutableRecurringJobs.set(offset + i, freshPage.get(i));
-    //                 } else {
-    //                     System.out.println("🏳️ Adding job at index " + (offset + i));
-    //                     mutableRecurringJobs.add(freshPage.get(i));
-    //                 }
-    //             }
-    //         }
-    
-    //         offset += pageSize;
-    //     }
-        
-    //     this.recurringJobs = new RecurringJobsResult(mutableRecurringJobs);
-    //     return mutableRecurringJobs;
-    // }
-    
     // private List<RecurringJob> getRecurringJobs() {
     //     if (storageProvider.recurringJobsUpdated(recurringJobs.getLastModifiedHash())) {
     //         this.recurringJobs = storageProvider.getRecurringJobs();
@@ -227,16 +156,15 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     List<Job> toScheduledJobs(RecurringJob recurringJob, Instant from, Instant upUntil) {
         List<Job> jobsToSchedule = getJobsToSchedule(recurringJob, from, upUntil);
         if (jobsToSchedule.isEmpty()) {
-            LOGGER.trace("Recurring job '{}' resulted in 0 scheduled job.", recurringJob.getJobName());
+            LOGGER.trace("[{}]: Recurring job {} resulted in 0 scheduled job.", recurringJob.getId(), recurringJob.getJobName());
         } else if (jobsToSchedule.size() > 1) {
-            LOGGER.info("Recurring job '{}' resulted in {} scheduled jobs. This means a long GC happened and JobRunr is catching up.", recurringJob.getJobName(), jobsToSchedule.size());
+            LOGGER.info("[{}]: Recurring job {} resulted in {} scheduled jobs. This means a long GC happened and JobRunr is catching up.", recurringJob.getId(), recurringJob.getJobName(), jobsToSchedule.size());
         } else if (isAlreadyScheduledEnqueuedOrProcessing(recurringJob)) {
             // if the job is already scheduled, enqueued or processing, we skip this run
-            LOGGER.info("Recurring job '{}' is already scheduled, enqueued or processing. Run will be skipped as job is taking longer than given CronExpression or Interval.", recurringJob.getJobName());
+            LOGGER.info("[{}]: Recurring job is already scheduled, enqueued or processing. Run will be skipped as job is taking longer than given CronExpression or Interval.", recurringJob.getId(), recurringJob.getJobName());
             jobsToSchedule.clear();
         } else if (jobsToSchedule.size() == 1) {
-            // System.out.println("🏳️ Recurring job '" + recurringJob.getId() + "has intances in jobrunr_jobs? - " + isAlreadyScheduledEnqueuedOrProcessing(recurringJob));
-            LOGGER.debug("Recurring job '{}' resulted in 1 scheduled job.", recurringJob.getJobName());
+            LOGGER.debug("[{}]: Recurring job {} resulted in 1 scheduled job.", recurringJob.getId(), recurringJob.getJobName());
         }
         registerRecurringJobRun(recurringJob, upUntil);
         return jobsToSchedule;
@@ -249,9 +177,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
     private Map<String, Long> fetchExistingCounts() {
         Map<String, Long> existingById = new HashMap<>();
-        System.out.println("🏳️ Fetching existing counts...");
         existingById = storageProvider.recurringJobsExists(SCHEDULED, ENQUEUED, PROCESSING);
-        // System.out.println("🏳️ Existing counts: " + existingById);
         return existingById;
     }
 

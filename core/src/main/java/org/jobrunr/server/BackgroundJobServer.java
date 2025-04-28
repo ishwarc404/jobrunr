@@ -130,9 +130,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
                 isRunning = true;
                 startStewardAndServerZooKeeper();
                 startWorkers();
-                System.out.println("[" + configuration.getName() + "] Starting BackgroundJobServer with id " + configuration.getId());                
-                System.out.println("[" + configuration.getName() + "] BackgroundJobServer Zookeeper started successfully");
-                System.out.println("[" + configuration.getName() + "] BackgroundJobServer Workers started successfully");
+                LOGGER.info("Starting BackgroundJobServer with id: ", configuration.getId());                
             }
         }
     }

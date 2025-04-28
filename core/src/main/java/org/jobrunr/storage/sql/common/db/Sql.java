@@ -110,23 +110,6 @@ public class Sql<T> {
         }
     }
 
-    // public long selectSumWithLimitOffset(String column, int limit, int offset) throws SQLException {
-    //     String parsedStatement = parse(
-    //         "SELECT SUM(" + column + ") FROM (SELECT " + column + " FROM " + tableName + " ORDER BY createdAt ASC LIMIT " + limit + " OFFSET " + offset + ") AS subquery"
-    //     );
-        
-    //     try (PreparedStatement ps = connection.prepareStatement(parsedStatement)) {
-    //         setParams(ps);
-    //         try (ResultSet countResultSet = ps.executeQuery()) {
-    //             if (countResultSet.next()) {
-    //                 return countResultSet.getLong(1);
-    //             } else {
-    //                 return 0L;
-    //             }
-    //         }
-    //     }
-    // }
-    
     /**
      * Sum the values of `column` for all rows whose createdAt
      * timestamp (in epoch seconds) lies in [windowStart, windowEnd).
@@ -218,10 +201,7 @@ public class Sql<T> {
     }
 
     public void insertAll(List<T> batchCollection, String statement) throws SQLException {
-        long transaction = System.currentTimeMillis();
         int[] result = insertOrUpdateAll(batchCollection, INSERT + statement);
-        long duration = System.currentTimeMillis() - transaction;
-        System.out.println("[DB BATCH WRITE] - Inserted " + batchCollection.size() + " items in " + duration + "ms");
         if (result.length != batchCollection.size()) {
             throw shouldNotHappenException("Could not insert or update all objects - different result size: originalCollectionSize=" + batchCollection.size() + "; " + Arrays.toString(result));
         } else if (stream(result).anyMatch(i -> i < 1 && i != Statement.SUCCESS_NO_INFO)) {

@@ -170,7 +170,7 @@ public class Job extends AbstractJob {
         return history.subList(actualStateChanges, history.size());
     }
 
-    public void  enqueue() {
+    public void enqueue() {
         addJobState(new EnqueuedState());
     }
 

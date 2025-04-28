@@ -98,7 +98,6 @@ public class ServerZooKeeper implements Runnable {
         storageProvider.signalBackgroundJobServerAlive(serverStatus);
         cpuAllocationIrregularity(lastSignalAlive, serverStatus.getLastHeartbeat()).ifPresent(amountOfSeconds -> dashboardNotificationManager.notify(new CpuAllocationIrregularityNotification(amountOfSeconds)));
         lastSignalAlive = serverStatus.getLastHeartbeat();
-        System.out.println("["+ serverStatus.getName() +"] - I AM ALIVE - " + serverStatus.getId() + " - " + serverStatus.getLastHeartbeat());
     }
 
     private void deleteServersThatTimedOut() {
