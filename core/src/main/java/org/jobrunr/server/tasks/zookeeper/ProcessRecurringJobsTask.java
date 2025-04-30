@@ -12,12 +12,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
+import java.time.Duration;
+
 import static org.jobrunr.jobs.states.StateName.ENQUEUED;
 import static org.jobrunr.jobs.states.StateName.PROCESSING;
 import static org.jobrunr.jobs.states.StateName.SCHEDULED;
 
 public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
+    private Boolean amIMaster = false; // This is used to check if the current instance is the master instance
     private final Map<String, Instant> recurringJobRuns; 
     private RecurringJobsResult recurringJobs; // This stores all the millions of jobs
     private Map<Long, Long> recurringJobHash; // This will store the epoch time of window start of X amount time, and the hash of the jobs in that window
@@ -36,7 +39,15 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     protected void runTask() {
         LOGGER.trace("Looking for recurring jobs... ");
 
-        Instant from = runStartTime();
+        Instant initialRunStartTime = runStartTime();
+        // Check if the current instance is the master instance
+        if (!this.amIMaster) {
+            LOGGER.info("This instance was not the master instance. Looks like a crash happened. Let's go back in time.");
+            initialRunStartTime = initialRunStartTime.minus(Duration.ofMinutes(1)); // go back 1 minute
+            this.amIMaster = true; // set this instance as the master instance
+        }
+
+        Instant from = initialRunStartTime;        
         Instant upUntil = runStartTime().plus(backgroundJobServerConfiguration().getPollInterval());
         List<RecurringJob> recurringJobs = getRecurringJobs();
         this.recurringJobHash = storageProvider.getRecurringJobsHash();
@@ -87,7 +98,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         while (windowStart < now ) {
             long windowEnd = Math.min(windowStart + interval, now);
     
-            LOGGER.info("Page Window: " + windowStart + " to " + windowEnd);
+            // LOGGER.info("Page Window: " + windowStart + " to " + windowEnd);
             // pick out only the local jobs in this time slice
             // copy into final locals for the lambda
             final long ws = windowStart;

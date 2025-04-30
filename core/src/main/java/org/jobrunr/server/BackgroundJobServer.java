@@ -289,7 +289,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
     public void processJob(Job job) {
         BackgroundJobPerformer backgroundJobPerformer = backgroundJobPerformerFactory.newBackgroundJobPerformer(this, job);
         jobExecutor.execute(backgroundJobPerformer);
-        LOGGER.debug("Submitted BackgroundJobPerformer for job {} to executor service", job.getId());
+        LOGGER.debug("[{}] : Submitted BackgroundJobPerformer for job {} to executor service", job.getRecurringJobId(), job.getId());
     }
 
     private void startStewardAndServerZooKeeper() {
