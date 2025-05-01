@@ -345,7 +345,7 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         String sql =
             "SELECT recurringJobId, COUNT(*) AS jobCount " +
             "  FROM jobrunr_jobs " +
-            " WHERE state IN ('SCHEDULED','ENQUEUED','PROCESSING','SUCCEEDED') " +
+            " WHERE state IN ('SCHEDULED','ENQUEUED','PROCESSING') " +
             " GROUP BY recurringJobId";
     
         try (Connection conn = dataSource.getConnection();

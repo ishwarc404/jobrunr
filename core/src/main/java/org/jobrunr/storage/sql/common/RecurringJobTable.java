@@ -61,7 +61,7 @@ public class RecurringJobTable extends Sql<RecurringJob> {
         "ORDER BY createdAt ASC";
 
         return select(fragment)
-        .map(this::toRecurringJob)
+    .map(this::toRecurringJob)
         .collect(Collectors.toList());
     }
 

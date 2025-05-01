@@ -25,6 +25,8 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     private RecurringJobsResult recurringJobs; // This stores all the millions of jobs
     private Map<Long, Long> recurringJobHash; // This will store the epoch time of window start of X amount time, and the hash of the jobs in that window
     //If the window start time's hash is same as in memory, we don't need to fetch the jobs again
+
+    //Here we fetch all the existingJobs in jobrunr_jobs
     Map<String,Long> existingById;
 
 
