@@ -650,5 +650,8 @@ public class JedisRedisStorageProvider extends AbstractStorageProvider implement
         return null;
     }
 
+    public Instant getLastSucceedJobUpdateTime() {
+        return null;
+    }
 
 }

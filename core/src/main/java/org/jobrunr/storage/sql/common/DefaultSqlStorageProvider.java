@@ -35,7 +35,9 @@ import java.util.HashMap;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.LinkedHashMap;
-
+import java.sql.Timestamp;
+import java.util.Calendar;
+import java.util.TimeZone;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.jobrunr.jobs.states.StateName.PROCESSING;
@@ -363,6 +365,31 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         } catch (SQLException e) {
             LOGGER.error("Error running recurringJobsExists");
             e.printStackTrace();
+            throw new StorageException(e);
+        }
+    }
+    
+    public Instant getLastSucceedJobUpdateTime() {
+        String sql = "SELECT updatedAt FROM jobrunr_jobs WHERE state = 'SUCCEEDED' ORDER BY updatedAt DESC LIMIT 1";
+    
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+    
+            if (rs.next()) {
+                // Use UTC timezone to get the correct timestamp as it is stored in UTC in the db
+                // and convert it to Instant which is again UTC technically
+                Calendar utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+                Timestamp timestamp = rs.getTimestamp("updatedAt", utcCalendar);
+                return timestamp.toInstant();
+            } else {
+                // No succeeded jobs found, return epoch or throw exception depending on your logic
+                LOGGER.warn("No SUCCEEDED jobs found in jobrunr_jobs.");
+                return Instant.EPOCH;
+            }
+    
+        } catch (SQLException e) {
+            LOGGER.error("Error in getLastSucceedJobUpdateTime", e);
             throw new StorageException(e);
         }
     }

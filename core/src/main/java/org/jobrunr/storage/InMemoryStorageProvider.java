@@ -360,5 +360,9 @@ public class InMemoryStorageProvider extends AbstractStorageProvider {
         return null;
     }
 
+    public Instant getLastSucceedJobUpdateTime() {
+        return null;
+    }
+
 
 }

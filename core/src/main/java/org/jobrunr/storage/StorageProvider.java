@@ -39,6 +39,16 @@ public interface StorageProvider extends AutoCloseable {
 
     StorageProviderInfo getStorageProviderInfo();
 
+
+    /**
+        Custom methods implemented part of Jobrunr Optimization
+    */
+    Long recurringJobsUpdatedHash(long windowStart, long windowEnd);
+    List<RecurringJob> getRecurringJobsPage(long windowStart, long windowEnd);
+    Map<Long, Long> getRecurringJobsHash();
+    Instant getLastSucceedJobUpdateTime();
+
+
     void setJobMapper(JobMapper jobMapper);
 
     /**
@@ -232,13 +242,6 @@ public interface StorageProvider extends AutoCloseable {
      */
     int deleteRecurringJob(String id);
 
-
-    //Custom Methods
-
-    Long recurringJobsUpdatedHash(long windowStart, long windowEnd);
-    List<RecurringJob> getRecurringJobsPage(long windowStart, long windowEnd);
-    Map<Long, Long> getRecurringJobsHash();
-    
     /**
      * Returns the statistics of the jobs (amount enqueued, amount scheduled, ...)
      * <em><strong>Important</strong>: in most cases, this results in a intensive query. JobRunr is designed to not call this method too often to limit

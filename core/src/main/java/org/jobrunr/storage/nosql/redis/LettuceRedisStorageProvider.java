@@ -735,5 +735,9 @@ public class LettuceRedisStorageProvider extends AbstractStorageProvider impleme
         return null;
     }
 
+    public Instant getLastSucceedJobUpdateTime() {
+        return null;
+    }
+
 
 }

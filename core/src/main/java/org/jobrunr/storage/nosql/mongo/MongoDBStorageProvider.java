@@ -552,7 +552,7 @@ public class MongoDBStorageProvider extends AbstractStorageProvider implements N
     public Long recurringJobsUpdatedHash(long offset, long limit) {
         return null;
     }
-    
+
     public List<RecurringJob> getRecurringJobsPage(long offset, long limit) {
         return null;
     }
@@ -562,6 +562,10 @@ public class MongoDBStorageProvider extends AbstractStorageProvider implements N
     }
 
     public Map<Long, Long> getRecurringJobsHash() {
+        return null;
+    }
+
+    public Instant getLastSucceedJobUpdateTime() {
         return null;
     }
 

@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 import java.time.Duration;
@@ -42,11 +43,19 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         LOGGER.trace("Looking for recurring jobs... ");
 
         Instant initialRunStartTime = runStartTime();
+
         // Check if the current instance is the master instance
         if (!this.amIMaster) {
-            LOGGER.info("This instance was not the master instance. Looks like a crash happened. Let's go back in time.");
-            initialRunStartTime = initialRunStartTime.minus(Duration.ofMinutes(1)); // go back 1 minute
-            this.amIMaster = true; // set this instance as the master instance
+            LOGGER.info("[FLUXCAPACITOR]: This instance was not the master instance. Looks like a crash happened. Let's go back in time.");
+            Instant oneMinuteAgo = initialRunStartTime.minus(Duration.ofMinutes(1));
+            Instant lastSuccess = storageProvider.getLastSucceedJobUpdateTime();
+            LOGGER.info("[FLUXCAPACITOR]: Initial start time: " + initialRunStartTime);
+            LOGGER.info("[FLUXCAPACITOR]: Last success time: " + lastSuccess);
+            LOGGER.info("[FLUXCAPACITOR]: One minute ago: " + oneMinuteAgo);
+            // Time travel to the last success time
+            initialRunStartTime = oneMinuteAgo.isAfter(lastSuccess) ? oneMinuteAgo : lastSuccess;
+            LOGGER.info("[FLUXCAPACITOR]: Time travelling to: " + initialRunStartTime);
+            this.amIMaster = true; // set this instance as the master instance only in the context of ProcessRecurringJobsTask
         }
 
         Instant from = initialRunStartTime;        

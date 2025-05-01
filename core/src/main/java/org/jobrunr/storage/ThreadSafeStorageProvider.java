@@ -240,4 +240,7 @@ public class ThreadSafeStorageProvider implements StorageProvider {
         return storageProvider.getRecurringJobsHash();
     }
 
+    public Instant getLastSucceedJobUpdateTime() {
+        return storageProvider.getLastSucceedJobUpdateTime();
+    }
 }
