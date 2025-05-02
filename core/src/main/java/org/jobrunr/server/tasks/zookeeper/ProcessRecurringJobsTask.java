@@ -103,7 +103,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         long windowStart = mutable.get(0).getCreatedAt().toEpochMilli();
         // …up to now, in 10‑minute increments
         long now      = System.currentTimeMillis();
-        long interval = 10 * 60 * 1000; // 10 minutes
+        long interval = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
 
         // I'm not sure if this is the best way to do this, unable to check if it works, but check once
         while (windowStart < now ) {

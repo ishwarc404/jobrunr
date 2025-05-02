@@ -432,7 +432,7 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         "    SELECT MIN(createdAt) AS ts, MAX(createdAt) AS max_ts FROM jobrunr_recurring_jobs\n" +
         "  ),\n" +
         "  bucket_defs AS (\n" +
-        "    SELECT ts, CEIL((max_ts - ts) / 600000) AS total_buckets FROM first_ts\n" +
+        "    SELECT ts, CEIL((max_ts - ts) / 43200000) AS total_buckets FROM first_ts\n" +
         "  ),\n" +
         "  seq AS (\n" +
         "    SELECT 0 AS bucket_idx FROM bucket_defs\n" +
@@ -440,11 +440,11 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         "    SELECT bucket_idx + 1 FROM seq JOIN bucket_defs ON bucket_idx + 1 < bucket_defs.total_buckets\n" +
         "  ),\n" +
         "  aggregates AS (\n" +
-        "    SELECT (j.createdAt - f.ts) DIV 600000 AS bucket_idx, SUM(j.createdAt) AS window_hash\n" +
+        "    SELECT (j.createdAt - f.ts) DIV 43200000 AS bucket_idx, SUM(j.createdAt) AS window_hash\n" +
         "    FROM jobrunr_recurring_jobs j CROSS JOIN first_ts f\n" +
         "    GROUP BY bucket_idx\n" +
         "  )\n" +
-        "SELECT (f.ts + s.bucket_idx * 600000) AS window_start_epoch, COALESCE(a.window_hash, 0) AS window_hash\n" +
+        "SELECT (f.ts + s.bucket_idx * 43200000) AS window_start_epoch, COALESCE(a.window_hash, 0) AS window_hash\n" +
         "FROM seq s CROSS JOIN first_ts f LEFT JOIN aggregates a USING(bucket_idx)\n" +
         "ORDER BY s.bucket_idx";
     
@@ -461,6 +461,7 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
             }
     
         } catch (SQLException e) {
+            LOGGER.error("Error running getRecurringJobsHash", e);
             throw new StorageException(e);
         }
     
