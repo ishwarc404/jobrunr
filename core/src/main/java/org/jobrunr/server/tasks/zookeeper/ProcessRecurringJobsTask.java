@@ -27,7 +27,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     private Map<Long, Long> recurringJobHash; // This will store the epoch time of window start of X amount time, and the hash of the jobs in that window
     //If the window start time's hash is same as in memory, we don't need to fetch the jobs again
 
-    //Here we fetch all the existingJobs in jobrunr_jobs
+    //Here we fetch all the existingJobs in jobrunr_jobs to check if the job is already scheduled, enqueued or processing
     Map<String,Long> existingById;
 
 
@@ -60,10 +60,20 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
         Instant from = initialRunStartTime;        
         Instant upUntil = runStartTime().plus(backgroundJobServerConfiguration().getPollInterval());
-        List<RecurringJob> recurringJobs = getRecurringJobs();
-        this.recurringJobHash = storageProvider.getRecurringJobsHash();
 
+        //Let's store the original hash of the recurring jobs, we will compare it with the new hash after we fetch the jobs
+        Long pollStartHash = calculateHash(recurringJobs);
+        List<RecurringJob> recurringJobs = getRecurringJobs(); //Main function to fetch the recurring jobs
+        Long pollUpdatedHash = calculateHash(recurringJobs);
 
+        if (!pollStartHash.equals(pollUpdatedHash)) {
+            // This means that the recurring jobs have changed in the database
+            LOGGER.info("[RECURRINGJOBHASH]: The recurring jobs have changed in the database. We need to fetch the hash windows again.");
+            // This is a heavy operation, so we need to do it only if the hash has changed
+            // We need to fetch the hash of the recurring jobs again at all poll intervals only if full db hash changes, can we optimize this?
+            this.recurringJobHash = storageProvider.getRecurringJobsHash();
+        }
+        
         existingById = fetchExistingCounts(); //a bit heavy
         convertAndProcessManyJobs(recurringJobs,
                 recurringJob -> toScheduledJobs(recurringJob, from, upUntil),
@@ -81,24 +91,27 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     private List<RecurringJob> getRecurringJobs() {
         if (recurringJobs == null || recurringJobs.isEmpty()) {
             // first time, just fetch all from the database
-            LOGGER.info("Boot up time, fetching all recurring jobs.");
+            LOGGER.info("[BOOTUP]: Boot up time, fetching all recurring jobs.");
             long fetchStart = System.currentTimeMillis();
             this.recurringJobs = storageProvider.getRecurringJobs();
             long fetchEnd = System.currentTimeMillis();
-            LOGGER.info("First time fetch duration: " + (fetchEnd - fetchStart) + "ms");
-            LOGGER.info("First time fetch size: " + recurringJobs.size());
+            LOGGER.info("[BOOTUP]: First time fetch duration: " + (fetchEnd - fetchStart) + "ms");
+            LOGGER.info("[BOOTUP]: First time fetch size: " + recurringJobs.size());
             return recurringJobs;
         }
 
-        // This logic to avoid refetching even the hash. 
+        //This logic checks if the recurring jobs have been updated in the database
+        //If the hash of the jobs in the database is same as in memory, we don't need to fetch the jobs again
         if (!storageProvider.recurringJobsUpdated(recurringJobs.getLastModifiedHash())) {
+            LOGGER.info("[RECURRINGJOBHASH]: Recurring jobs have not been updated in the database. We can use the cached jobs.");
             return recurringJobs;
         }
     
+        // If we are here, we need to fetch the jobs again, becuase the hash has changed of the db
+        // But we don't need to fetch all the jobs again, we can just fetch the jobs that are in the time window
+
         // make a mutable copy and sort by createdAt ascending
         List<RecurringJob> mutable = new ArrayList<>(recurringJobs);
-
-        
         // determine our paging window: from the earliest job we know about…
         long windowStart = mutable.get(0).getCreatedAt().toEpochMilli();
         // …up to now, in 10‑minute increments
@@ -127,12 +140,14 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
             long dbHash = recurringJobHash.getOrDefault(windowStart, 0L);
             // The below line is commented out because we are not using the database to calculate the hash
             // long dbHash    = storageProvider.recurringJobsUpdatedHash(windowStart, windowEnd);
+
+            //Remove double if checks
             if (localHash != dbHash) {
                 LOGGER.info("🚨 Hash mismatch at offset: " + windowStart + ". Will fetch fresh page.");
             }
 
             if (localHash != dbHash) {
-                // fetch only that N‑minute batch
+                // fetch only that N‑minute batch from database
                 List<RecurringJob> fresh = storageProvider.getRecurringJobsPage(windowStart, windowEnd);
                 LOGGER.info("Fresh page size: " + fresh.size());
                 // replace in existing recurringJobs list

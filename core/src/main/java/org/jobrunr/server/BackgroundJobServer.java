@@ -302,6 +302,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
 
     private void startJobZooKeepers() {
         long delay = min(configuration.getPollInterval().toMillis() / 5, 1000);
+        // Taking care of processing and scheduling jobs
         JobZooKeeper recurringAndScheduledJobsZooKeeper = new JobZooKeeper(this, new ProcessRecurringJobsTask(this), new ProcessScheduledJobsTask(this));
         JobZooKeeper orphanedJobsZooKeeper = new JobZooKeeper(this, new ProcessOrphanedJobsTask(this));
         JobZooKeeper janitorZooKeeper = new JobZooKeeper(this, new DeleteSucceededJobsTask(this), new DeleteDeletedJobsPermanentlyTask(this));
@@ -425,6 +426,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
 
         @Override
         public BackgroundJobPerformer newBackgroundJobPerformer(BackgroundJobServer backgroundJobServer, Job job) {
+            // This is run on a thread.
             return new BackgroundJobPerformer(backgroundJobServer, job);
         }
     }

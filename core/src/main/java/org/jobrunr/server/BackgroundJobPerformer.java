@@ -33,6 +33,8 @@ public class BackgroundJobPerformer implements Runnable {
     private final Job job;
 
     public BackgroundJobPerformer(BackgroundJobServer backgroundJobServer, Job job) {
+        // A single instance of BackgroundJobServer is shared among all threads
+        // It's DefaultSQLStorageProvider is accessible from multiple threads
         this.backgroundJobServer = backgroundJobServer;
         this.jobPerformingFilters = new JobPerformingFilters(job, backgroundJobServer.getJobFilters());
         this.job = job;
