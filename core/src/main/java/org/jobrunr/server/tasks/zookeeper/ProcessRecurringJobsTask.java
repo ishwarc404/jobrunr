@@ -61,18 +61,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         Instant from = initialRunStartTime;        
         Instant upUntil = runStartTime().plus(backgroundJobServerConfiguration().getPollInterval());
 
-        //Let's store the original hash of the recurring jobs, we will compare it with the new hash after we fetch the jobs
-        Long pollStartHash = calculateHash(recurringJobs);
         List<RecurringJob> recurringJobs = getRecurringJobs(); //Main function to fetch the recurring jobs
-        Long pollUpdatedHash = calculateHash(recurringJobs);
-
-        if (!pollStartHash.equals(pollUpdatedHash)) {
-            // This means that the recurring jobs have changed in the database
-            LOGGER.info("[RECURRINGJOBHASH]: The recurring jobs have changed in the database. We need to fetch the hash windows again.");
-            // This is a heavy operation, so we need to do it only if the hash has changed
-            // We need to fetch the hash of the recurring jobs again at all poll intervals only if full db hash changes, can we optimize this?
-            this.recurringJobHash = storageProvider.getRecurringJobsHash();
-        }
         
         existingById = fetchExistingCounts(); //a bit heavy
         convertAndProcessManyJobs(recurringJobs,
@@ -107,14 +96,25 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
             return recurringJobs;
         }
     
-        // If we are here, we need to fetch the jobs again, becuase the hash has changed of the db
-        // But we don't need to fetch all the jobs again, we can just fetch the jobs that are in the time window
+        /*
+         If we are here, we need to fetch the jobs again, becuase the hash has changed of the db
+         But we don't need to fetch all the jobs again, we can just fetch the jobs that are in the time window
+         We do need to fetch the hashes of the windows again.
+        */
+
+        LOGGER.info("[RECURRINGJOBHASH]: The recurring jobs have changed in the database. We need to fetch the hash windows again.");
+        // This is a heavy operation, so we need to do it only if the hash has changed
+        // We need to fetch the hash of the recurring jobs again at all poll intervals only if full db hash changes, can we optimize this?
+        Instant recurringJobHashStart = Instant.now();
+        this.recurringJobHash = storageProvider.getRecurringJobsHash();
+        Instant recurringJobHashEnd = Instant.now();
+        LOGGER.info("[RECURRINGJOBHASH]: Recurring job hash fetch duration: " + Duration.between(recurringJobHashStart, recurringJobHashEnd).toMillis() + "ms");
 
         // make a mutable copy and sort by createdAt ascending
         List<RecurringJob> mutable = new ArrayList<>(recurringJobs);
         // determine our paging window: from the earliest job we know about…
         long windowStart = mutable.get(0).getCreatedAt().toEpochMilli();
-        // …up to now, in 10‑minute increments
+        // …up to now, in 12-hour increments
         long now      = System.currentTimeMillis();
         long interval = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
 
@@ -143,13 +143,16 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
             //Remove double if checks
             if (localHash != dbHash) {
-                LOGGER.info("🚨 Hash mismatch at offset: " + windowStart + ". Will fetch fresh page.");
+                LOGGER.info("[RECURRINGJOBHASH]: 🚨 Hash mismatch at offset: " + windowStart + ". Will fetch fresh page.");
             }
 
             if (localHash != dbHash) {
                 // fetch only that N‑minute batch from database
+                Instant fetchStart = Instant.now();
                 List<RecurringJob> fresh = storageProvider.getRecurringJobsPage(windowStart, windowEnd);
-                LOGGER.info("Fresh page size: " + fresh.size());
+                Instant fetchEnd = Instant.now();
+                LOGGER.info("[RECURRINGJOBHASH]: Fresh page fetch duration: " + Duration.between(fetchStart, fetchEnd).toMillis() + "ms");
+                LOGGER.info("[RECURRINGJOBHASH]: Fresh page size: " + fresh.size());
                 // replace in existing recurringJobs list
                 // find the range in the current list that belongs to [ws,we)
                 int startIdx = firstIndexOfTimestamp(mutable, windowStart);
