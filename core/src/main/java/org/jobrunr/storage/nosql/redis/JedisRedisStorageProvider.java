@@ -654,4 +654,8 @@ public class JedisRedisStorageProvider extends AbstractStorageProvider implement
         return null;
     }
 
+    public RecurringJobsResult getRecurringJobById(String id) {
+        return null;
+    }
+
 }

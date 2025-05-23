@@ -569,4 +569,7 @@ public class MongoDBStorageProvider extends AbstractStorageProvider implements N
         return null;
     }
 
+    public RecurringJobsResult getRecurringJobById(String id) {
+        return null;
+    }
 }

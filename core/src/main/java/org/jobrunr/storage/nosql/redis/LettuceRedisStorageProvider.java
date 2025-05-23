@@ -739,5 +739,9 @@ public class LettuceRedisStorageProvider extends AbstractStorageProvider impleme
         return null;
     }
 
+    public RecurringJobsResult getRecurringJobById(String id) {
+        return null;
+    }
+
 
 }

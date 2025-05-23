@@ -63,7 +63,9 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
         List<RecurringJob> recurringJobs = getRecurringJobs(); //Main function to fetch the recurring jobs
         
+        //This code fetches the existing jobs in the database which are already scheduled, enqueued or processing
         existingById = fetchExistingCounts(); //a bit heavy
+
         convertAndProcessManyJobs(recurringJobs,
                 recurringJob -> toScheduledJobs(recurringJob, from, upUntil),
                 totalAmountOfJobs -> LOGGER.debug("Found {} jobs to schedule from {} recurring jobs", totalAmountOfJobs, recurringJobs.size()));

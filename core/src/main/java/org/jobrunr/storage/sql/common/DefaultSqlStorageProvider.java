@@ -416,6 +416,17 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
 
+
+    // Function to get the details of a recurring job by its ID
+    public RecurringJobsResult getRecurringJobById(String id) {
+       try (final Connection conn = dataSource.getConnection()) {
+            RecurringJobsResult result = new RecurringJobsResult(recurringJobTable(conn).selectOne(id));
+            return result;
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
     public RecurringJobsResult getRecurringJobsPage(long windowStartEpoch, long windowEndEpoch) {
         try (final Connection conn = dataSource.getConnection()) {
             RecurringJobsResult result = new RecurringJobsResult(recurringJobTable(conn).selectFixedPage(windowStartEpoch,windowEndEpoch));
@@ -488,7 +499,6 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
             throw new StorageException(e);
         }
     }
-
 
     @Override
     public int deleteRecurringJob(String id) {

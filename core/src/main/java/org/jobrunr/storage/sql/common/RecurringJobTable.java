@@ -48,6 +48,13 @@ public class RecurringJobTable extends Sql<RecurringJob> {
                 .collect(toList());
     }
     
+    // Custom function to select recurring jobs by ID
+    public List<RecurringJob> selectOne(String id) {
+        return select("SELECT jobAsJson FROM jobrunr_recurring_jobs WHERE id = :id ORDER BY createdAt ASC")
+                .map(this::toRecurringJob)
+                .collect(toList());
+    }
+
     /**
      * Fetch all jobs whose createdAt (epoch seconds)
      * lies in [windowStartEpoch, windowEndEpoch).

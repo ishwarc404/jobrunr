@@ -364,5 +364,7 @@ public class InMemoryStorageProvider extends AbstractStorageProvider {
         return null;
     }
 
-
+    public RecurringJobsResult getRecurringJobById(String id) {
+        return null;
+    }
 }

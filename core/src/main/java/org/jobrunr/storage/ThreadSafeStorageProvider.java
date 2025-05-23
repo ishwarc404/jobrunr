@@ -243,4 +243,8 @@ public class ThreadSafeStorageProvider implements StorageProvider {
     public Instant getLastSucceedJobUpdateTime() {
         return storageProvider.getLastSucceedJobUpdateTime();
     }
+
+    public RecurringJobsResult getRecurringJobById(String id) {
+        return null;
+    }
 }
