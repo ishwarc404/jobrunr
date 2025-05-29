@@ -29,9 +29,14 @@ jobs:
     - name: List .m2 contents for debugging
       run: ls -R ~/.m2/repository/org/jobrunr/jobrunr
 
-    - name: Upload JAR from .m2 to GitHub Release
+    - name: Rename JAR using release tag
+      run: |
+        mkdir -p release-artifacts
+        cp ~/.m2/repository/org/jobrunr/jobrunr/1.0.0-SNAPSHOT/jobrunr-1.0.0-SNAPSHOT.jar release-artifacts/jobrunr-${{ github.ref_name }}.jar
+
+    - name: Upload renamed JAR to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: /home/runner/.m2/repository/org/jobrunr/jobrunr/1.0.0-SNAPSHOT/jobrunr-1.0.0-SNAPSHOT.jar
+        files: release-artifacts/jobrunr-${{ github.ref_name }}.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
