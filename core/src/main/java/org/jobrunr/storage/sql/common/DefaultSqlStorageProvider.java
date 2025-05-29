@@ -30,7 +30,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-
+import java.util.Map;
+import java.util.HashMap;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.LinkedHashMap;
+import java.sql.Timestamp;
+import java.util.Calendar;
+import java.util.TimeZone;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.jobrunr.jobs.states.StateName.PROCESSING;
@@ -39,7 +46,11 @@ import static org.jobrunr.storage.StorageProviderUtils.DatabaseOptions.SKIP_CREA
 import static org.jobrunr.utils.resilience.RateLimiter.Builder.rateLimit;
 import static org.jobrunr.utils.resilience.RateLimiter.SECOND;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class DefaultSqlStorageProvider extends AbstractStorageProvider implements SqlStorageProvider {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultSqlStorageProvider.class);
 
     protected final DataSource dataSource;
     protected final Dialect dialect;
@@ -199,7 +210,10 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     public List<Job> save(List<Job> jobs) {
         try (final Connection conn = dataSource.getConnection(); final Transaction transaction = new Transaction(conn)) {
             try {
+                long start = System.currentTimeMillis();
                 final List<Job> savedJobs = jobTable(conn).save(jobs);
+                long duration = System.currentTimeMillis() - start;
+                LOGGER.info("Inserted: " + jobs.size() + " jobs in: " + duration + "ms");
                 transaction.commit();
                 notifyJobStatsOnChangeListenersIf(!jobs.isEmpty());
                 return savedJobs;
@@ -328,6 +342,59 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
 
+    public Map<String, Long> recurringJobsExists(StateName... states) {
+    
+        String sql =
+            "SELECT recurringJobId, COUNT(*) AS jobCount " +
+            "  FROM jobrunr_jobs " +
+            " WHERE state IN ('SCHEDULED','ENQUEUED','PROCESSING') " +
+            " GROUP BY recurringJobId";
+    
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+    
+            Map<String, Long> counts = new HashMap<>();
+            while (rs.next()) {
+                String id = rs.getString("recurringJobId");
+                long cnt = rs.getLong("jobCount");
+                counts.put(id, cnt);
+            }
+            return counts;
+    
+        } catch (SQLException e) {
+            LOGGER.error("Error running recurringJobsExists");
+            e.printStackTrace();
+            throw new StorageException(e);
+        }
+    }
+    
+    public Instant getLastSucceedJobUpdateTime() {
+        String sql = "SELECT updatedAt FROM jobrunr_jobs WHERE state = 'SUCCEEDED' ORDER BY updatedAt DESC LIMIT 1";
+    
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+    
+            if (rs.next()) {
+                // Use UTC timezone to get the correct timestamp as it is stored in UTC in the db
+                // and convert it to Instant which is again UTC technically
+                Calendar utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+                Timestamp timestamp = rs.getTimestamp("updatedAt", utcCalendar);
+                return timestamp.toInstant();
+            } else {
+                // No succeeded jobs found, return epoch or throw exception depending on your logic
+                LOGGER.warn("No SUCCEEDED jobs found in jobrunr_jobs.");
+                return Instant.EPOCH;
+            }
+    
+        } catch (SQLException e) {
+            LOGGER.error("Error in getLastSucceedJobUpdateTime", e);
+            throw new StorageException(e);
+        }
+    }
+    
+
     @Override
     public RecurringJob saveRecurringJob(RecurringJob recurringJob) {
         try (final Connection conn = dataSource.getConnection(); final Transaction transaction = new Transaction(conn)) {
@@ -342,17 +409,92 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     @Override
     public RecurringJobsResult getRecurringJobs() {
         try (final Connection conn = dataSource.getConnection()) {
-            return new RecurringJobsResult(recurringJobTable(conn).selectAll());
+            RecurringJobsResult result = new RecurringJobsResult(recurringJobTable(conn).selectAll());
+            return result;
         } catch (SQLException e) {
             throw new StorageException(e);
         }
     }
+
+
+    // Function to get the details of a recurring job by its ID
+    public RecurringJobsResult getRecurringJobById(String id) {
+       try (final Connection conn = dataSource.getConnection()) {
+            RecurringJobsResult result = new RecurringJobsResult(recurringJobTable(conn).selectOne(id));
+            return result;
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
+    public RecurringJobsResult getRecurringJobsPage(long windowStartEpoch, long windowEndEpoch) {
+        try (final Connection conn = dataSource.getConnection()) {
+            RecurringJobsResult result = new RecurringJobsResult(recurringJobTable(conn).selectFixedPage(windowStartEpoch,windowEndEpoch));
+            return result;
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
+    public Map<Long, Long> getRecurringJobsHash() {
+        String sql =
+        "WITH RECURSIVE\n" +
+        "  first_ts AS (\n" +
+        "    SELECT MIN(createdAt) AS ts, MAX(createdAt) AS max_ts FROM jobrunr_recurring_jobs\n" +
+        "  ),\n" +
+        "  bucket_defs AS (\n" +
+        "    SELECT ts, CEIL((max_ts - ts) / 43200000) AS total_buckets FROM first_ts\n" +
+        "  ),\n" +
+        "  seq AS (\n" +
+        "    SELECT 0 AS bucket_idx FROM bucket_defs\n" +
+        "    UNION ALL\n" +
+        "    SELECT bucket_idx + 1 FROM seq JOIN bucket_defs ON bucket_idx + 1 < bucket_defs.total_buckets\n" +
+        "  ),\n" +
+        "  aggregates AS (\n" +
+        "    SELECT (j.createdAt - f.ts) DIV 43200000 AS bucket_idx, SUM(j.createdAt) AS window_hash\n" +
+        "    FROM jobrunr_recurring_jobs j CROSS JOIN first_ts f\n" +
+        "    GROUP BY bucket_idx\n" +
+        "  )\n" +
+        "SELECT (f.ts + s.bucket_idx * 43200000) AS window_start_epoch, COALESCE(a.window_hash, 0) AS window_hash\n" +
+        "FROM seq s CROSS JOIN first_ts f LEFT JOIN aggregates a USING(bucket_idx)\n" +
+        "ORDER BY s.bucket_idx";
+    
+        Map<Long, Long> windowHashMap = new LinkedHashMap<>();
+    
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+    
+            while (rs.next()) {
+                long windowStartEpoch = rs.getLong("window_start_epoch");
+                long windowHash = rs.getLong("window_hash");
+                windowHashMap.put(windowStartEpoch, windowHash);
+            }
+    
+        } catch (SQLException e) {
+            LOGGER.error("Error running getRecurringJobsHash", e);
+            throw new StorageException(e);
+        }
+    
+        return windowHashMap;
+    }
+    
+
 
     @Override
     public boolean recurringJobsUpdated(Long recurringJobsUpdatedHash) {
         try (final Connection conn = dataSource.getConnection()) {
             Long lastModifiedHash = recurringJobTable(conn).selectSum(RecurringJobs.FIELD_CREATED_AT);
             return !recurringJobsUpdatedHash.equals(lastModifiedHash);
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
+    public Long recurringJobsUpdatedHash(long windowStartEpoch, long windowEndEpoch) {
+        try (final Connection conn = dataSource.getConnection()) {
+            Long lastModifiedHash = recurringJobTable(conn).selectSumWithLimitOffset(RecurringJobs.FIELD_CREATED_AT, windowStartEpoch, windowEndEpoch);
+            return lastModifiedHash;
         } catch (SQLException e) {
             throw new StorageException(e);
         }

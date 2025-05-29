@@ -21,11 +21,16 @@ public class ProcessScheduledJobsTask extends AbstractJobZooKeeperTask {
 
     @Override
     protected void runTask() {
-        LOGGER.trace("Looking for scheduled jobs... ");
+        LOGGER.debug("Looking for scheduled jobs... ");
         Instant scheduledBefore = now().plus(backgroundJobServerConfiguration().getPollInterval());
-        processManyJobs(previousResults -> getJobsToSchedule(scheduledBefore, previousResults),
-                Job::enqueue,
-                totalAmountOfEnqueuedJobs -> LOGGER.debug("Found {} scheduled jobs to enqueue.", totalAmountOfEnqueuedJobs));
+        processManyJobs(
+            previousResults -> {
+                List<Job> jobs = getJobsToSchedule(scheduledBefore, previousResults);
+                LOGGER.info("Fetched " + jobs.size() + " scheduled jobs.");
+                return jobs;
+            },
+            Job::enqueue,
+            totalAmountOfEnqueuedJobs -> LOGGER.debug("Found {} scheduled jobs to enqueue.", totalAmountOfEnqueuedJobs));
     }
 
     private List<Job> getJobsToSchedule(Instant scheduledBefore, List<Job> previousResults) {

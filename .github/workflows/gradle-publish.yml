@@ -1,0 +1,42 @@
+name: Gradle Package
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Publish to Maven Local (skip tests)
+      run: ./gradlew publishToMavenLocal -x test
+
+    - name: List .m2 contents for debugging
+      run: ls -R ~/.m2/repository/org/jobrunr/jobrunr
+
+    - name: Rename JAR using release tag
+      run: |
+        mkdir -p release-artifacts
+        cp ~/.m2/repository/org/jobrunr/jobrunr/1.0.0-SNAPSHOT/jobrunr-1.0.0-SNAPSHOT.jar release-artifacts/jobrunr-${{ github.ref_name }}.jar
+
+    - name: Upload renamed JAR to GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: release-artifacts/jobrunr-${{ github.ref_name }}.jar
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

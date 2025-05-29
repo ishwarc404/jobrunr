@@ -110,6 +110,40 @@ public class Sql<T> {
         }
     }
 
+    /**
+     * Sum the values of `column` for all rows whose createdAt
+     * timestamp (in epoch seconds) lies in [windowStart, windowEnd).
+     *
+     * @param column            the column to SUM()
+     * @param windowStartEpoch  inclusive lower bound (seconds since epoch)
+     * @param windowEndEpoch    exclusive upper bound (seconds since epoch)
+     */
+    public long selectSumWithLimitOffset(String column,
+    long windowStartEpoch,
+    long windowEndEpoch) throws SQLException {
+
+        // build a WHERE‐clause query instead of a LIMIT/OFFSET wrapper
+        String sql = ""
+        + "SELECT COALESCE(SUM(" + column + "),0) "
+        + "FROM " + tableName + " "
+        + "WHERE createdAt >= ? AND createdAt < ?";
+
+        String parsed = parse(sql);
+        try (PreparedStatement ps = connection.prepareStatement(parsed)) {
+            // bind any common params first
+            setParams(ps);
+    
+            // now bind our window bounds at parameter slots 1 and 2
+            ps.setLong(1, windowStartEpoch);
+            ps.setLong(2, windowEndEpoch);
+    
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getLong(1) : 0L;
+            }
+        }
+    }
+
+
     public long selectSum(String column) throws SQLException {
         String parsedStatement = parse("select sum(" + column + ") from " + tableName);
         try (PreparedStatement ps = connection.prepareStatement(parsedStatement)) {

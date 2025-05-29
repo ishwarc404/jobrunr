@@ -5,6 +5,7 @@ import org.jobrunr.jobs.mappers.JobMapper;
 import org.jobrunr.storage.sql.common.db.Dialect;
 import org.jobrunr.storage.sql.common.db.Sql;
 import org.jobrunr.storage.sql.common.db.SqlResultSet;
+import java.util.stream.Collectors;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -42,10 +43,36 @@ public class RecurringJobTable extends Sql<RecurringJob> {
     }
 
     public List<RecurringJob> selectAll() {
-        return select("jobAsJson from jobrunr_recurring_jobs")
+        return select("jobAsJson from jobrunr_recurring_jobs ORDER BY createdAt ASC")
                 .map(this::toRecurringJob)
                 .collect(toList());
     }
+    
+    // Custom function to select recurring jobs by ID
+    public List<RecurringJob> selectOne(String id) {
+        return select("SELECT jobAsJson FROM jobrunr_recurring_jobs WHERE id = :id ORDER BY createdAt ASC")
+                .map(this::toRecurringJob)
+                .collect(toList());
+    }
+
+    /**
+     * Fetch all jobs whose createdAt (epoch seconds)
+     * lies in [windowStartEpoch, windowEndEpoch).
+     */
+    public List<RecurringJob> selectFixedPage(long windowStartEpoch, long windowEndEpoch) {
+        String fragment =
+        "jobAsJson " +
+        "FROM jobrunr_recurring_jobs " +
+        "WHERE createdAt >= " + windowStartEpoch + " " +
+        "AND createdAt < "   + windowEndEpoch   + " " +
+        "ORDER BY createdAt ASC";
+
+        return select(fragment)
+    .map(this::toRecurringJob)
+        .collect(Collectors.toList());
+    }
+
+
 
     public long count() throws SQLException {
         return selectCount("from jobrunr_recurring_jobs");

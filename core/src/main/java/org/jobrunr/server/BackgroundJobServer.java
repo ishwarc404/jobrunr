@@ -130,6 +130,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
                 isRunning = true;
                 startStewardAndServerZooKeeper();
                 startWorkers();
+                LOGGER.info("Starting BackgroundJobServer with id: ", configuration.getId());                
             }
         }
     }
@@ -288,7 +289,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
     public void processJob(Job job) {
         BackgroundJobPerformer backgroundJobPerformer = backgroundJobPerformerFactory.newBackgroundJobPerformer(this, job);
         jobExecutor.execute(backgroundJobPerformer);
-        LOGGER.debug("Submitted BackgroundJobPerformer for job {} to executor service", job.getId());
+        LOGGER.debug("[{}] : Submitted BackgroundJobPerformer for job {} to executor service", job.getRecurringJobId(), job.getId());
     }
 
     private void startStewardAndServerZooKeeper() {
@@ -301,6 +302,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
 
     private void startJobZooKeepers() {
         long delay = min(configuration.getPollInterval().toMillis() / 5, 1000);
+        // Taking care of processing and scheduling jobs
         JobZooKeeper recurringAndScheduledJobsZooKeeper = new JobZooKeeper(this, new ProcessRecurringJobsTask(this), new ProcessScheduledJobsTask(this));
         JobZooKeeper orphanedJobsZooKeeper = new JobZooKeeper(this, new ProcessOrphanedJobsTask(this));
         JobZooKeeper janitorZooKeeper = new JobZooKeeper(this, new DeleteSucceededJobsTask(this), new DeleteDeletedJobsPermanentlyTask(this));
@@ -424,6 +426,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
 
         @Override
         public BackgroundJobPerformer newBackgroundJobPerformer(BackgroundJobServer backgroundJobServer, Job job) {
+            // This is run on a thread.
             return new BackgroundJobPerformer(backgroundJobServer, job);
         }
     }

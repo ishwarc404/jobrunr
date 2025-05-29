@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Map;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -37,6 +38,17 @@ public interface StorageProvider extends AutoCloseable {
     int BATCH_SIZE = 5000;
 
     StorageProviderInfo getStorageProviderInfo();
+
+
+    /**
+        Custom methods implemented part of Jobrunr Optimization
+    */
+    Long recurringJobsUpdatedHash(long windowStart, long windowEnd);
+    List<RecurringJob> getRecurringJobsPage(long windowStart, long windowEnd);
+    Map<Long, Long> getRecurringJobsHash();
+    Instant getLastSucceedJobUpdateTime();
+    RecurringJobsResult getRecurringJobById(String id) throws JobNotFoundException;
+
 
     void setJobMapper(JobMapper jobMapper);
 
@@ -203,6 +215,8 @@ public interface StorageProvider extends AutoCloseable {
      * @return true if a Job exists created by a RecurringJob with the given id.
      */
     boolean recurringJobExists(String recurringJobId, StateName... states);
+
+    Map<String, Long> recurringJobsExists(StateName... states);
 
     /**
      * Saves a {@link RecurringJob} to the database. If a {@link RecurringJob} with the same id exists, it will be overwritten
