@@ -871,4 +871,8 @@ public class ElasticSearchStorageProvider extends AbstractStorageProvider implem
     public RecurringJobsResult getRecurringJobById(String id) {
         return null;
     }
+
+    public Instant getJobScheduledAt(UUID id) {
+        return null;
+    }
 }

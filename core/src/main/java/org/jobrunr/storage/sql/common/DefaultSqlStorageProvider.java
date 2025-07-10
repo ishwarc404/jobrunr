@@ -239,6 +239,31 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
 
+    //Custom function to get the scheduledAt time of a job by its ID
+    @Override
+    public Instant getJobScheduledAt(UUID jobId) {
+        String sql = "SELECT scheduledAt FROM jobrunr_jobs WHERE id = ?";
+
+        try (Connection conn = dataSource.getConnection();
+            PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, jobId.toString());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Timestamp ts = rs.getTimestamp("scheduledAt");
+                    return ts != null ? ts.toInstant() : null;
+                }
+                return null;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.error("Error querying scheduledAt for job: {}", jobId, e);
+            throw new StorageException(e);
+        }
+    }
+
+
     @Override
     public long countJobs(StateName state) {
         try (final Connection conn = dataSource.getConnection()) {
