@@ -6,6 +6,7 @@ import org.jobrunr.storage.sql.common.db.Dialect;
 import org.jobrunr.storage.sql.common.db.Sql;
 import org.jobrunr.storage.sql.common.db.SqlResultSet;
 import java.util.stream.Collectors;
+import java.util.logging.Logger;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -17,6 +18,7 @@ import static org.jobrunr.storage.StorageProviderUtils.RecurringJobs.*;
 public class RecurringJobTable extends Sql<RecurringJob> {
 
     private final JobMapper jobMapper;
+    private static final Logger LOGGER = Logger.getLogger(RecurringJobTable.class.getName());
 
     public RecurringJobTable(Connection connection, Dialect dialect, String tablePrefix, JobMapper jobMapper) {
         this.jobMapper = jobMapper;
@@ -50,7 +52,8 @@ public class RecurringJobTable extends Sql<RecurringJob> {
     
     // Custom function to select recurring jobs by ID
     public List<RecurringJob> selectOne(String id) {
-        return select("SELECT jobAsJson FROM jobrunr_recurring_jobs WHERE id = :id ORDER BY createdAt ASC")
+        withId(id);
+        return select("jobAsJson FROM jobrunr_recurring_jobs WHERE id = :id ORDER BY createdAt ASC")
                 .map(this::toRecurringJob)
                 .collect(toList());
     }

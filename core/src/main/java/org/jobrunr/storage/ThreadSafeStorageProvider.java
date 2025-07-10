@@ -245,6 +245,6 @@ public class ThreadSafeStorageProvider implements StorageProvider {
     }
 
     public RecurringJobsResult getRecurringJobById(String id) {
-        return null;
+        return storageProvider.getRecurringJobById(id);
     }
 }

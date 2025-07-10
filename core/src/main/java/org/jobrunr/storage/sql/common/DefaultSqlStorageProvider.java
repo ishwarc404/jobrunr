@@ -417,7 +417,8 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     }
 
 
-    // Function to get the details of a recurring job by its ID
+    // Custom Function to get the details of a recurring job by its ID
+    @Override
     public RecurringJobsResult getRecurringJobById(String id) {
        try (final Connection conn = dataSource.getConnection()) {
             RecurringJobsResult result = new RecurringJobsResult(recurringJobTable(conn).selectOne(id));
