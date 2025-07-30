@@ -79,6 +79,7 @@ public class StorageProviderUtils {
         public static final String FIELD_FIRST_HEARTBEAT = "firstHeartbeat";
         public static final String FIELD_LAST_HEARTBEAT = "lastHeartbeat";
         public static final String FIELD_IS_RUNNING = "running";
+        public static final String FIELD_SERVER_GROUP = "serverGroup";
         public static final String FIELD_SYSTEM_TOTAL_MEMORY = "systemTotalMemory";
         public static final String FIELD_SYSTEM_FREE_MEMORY = "systemFreeMemory";
         public static final String FIELD_SYSTEM_CPU_LOAD = "systemCpuLoad";

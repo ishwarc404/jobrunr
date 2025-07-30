@@ -19,9 +19,10 @@ import static org.jobrunr.jobs.states.StateName.ENQUEUED;
 import static org.jobrunr.jobs.states.StateName.PROCESSING;
 import static org.jobrunr.jobs.states.StateName.SCHEDULED;
 
+//This class is responsible for processing recurring jobs in a JobRunr server environment in the MASTER instance.
 public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
-    private Boolean amIMaster = false; // This is used to check if the current instance is the master instance
+    private Boolean amIMaster = false; // This is used to check if the current instance is the master instance, jobrunr knows that it is master, but in context of ProcessRecurringJobsTask, we don't
     private final Map<String, Instant> recurringJobRuns; 
     private RecurringJobsResult recurringJobs; // This stores all the millions of jobs
     private Map<Long, Long> recurringJobHash; // This will store the epoch time of window start of X amount time, and the hash of the jobs in that window

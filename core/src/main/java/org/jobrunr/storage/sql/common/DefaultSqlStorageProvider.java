@@ -228,6 +228,7 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
 
+    //Function to read job from jobrunr_jobs table by its ID
     @Override
     public Job getJobById(UUID id) {
         try (final Connection conn = dataSource.getConnection()) {

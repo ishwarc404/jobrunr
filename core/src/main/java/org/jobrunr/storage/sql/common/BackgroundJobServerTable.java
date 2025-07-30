@@ -38,6 +38,7 @@ public class BackgroundJobServerTable extends Sql<BackgroundJobServerStatus> {
                 .with(FIELD_FIRST_HEARTBEAT, BackgroundJobServerStatus::getFirstHeartbeat)
                 .with(FIELD_LAST_HEARTBEAT, BackgroundJobServerStatus::getLastHeartbeat)
                 .with(FIELD_IS_RUNNING, BackgroundJobServerStatus::isRunning)
+                .with(FIELD_SERVER_GROUP, System.getenv("JOBRUNR_SERVER_GROUP") != null ? System.getenv("JOBRUNR_SERVER_GROUP") : "worker")
                 .with(FIELD_SYSTEM_TOTAL_MEMORY, BackgroundJobServerStatus::getSystemTotalMemory)
                 .with(FIELD_SYSTEM_FREE_MEMORY, BackgroundJobServerStatus::getSystemFreeMemory)
                 .with(FIELD_SYSTEM_CPU_LOAD, BackgroundJobServerStatus::getSystemCpuLoad)
@@ -52,8 +53,8 @@ public class BackgroundJobServerTable extends Sql<BackgroundJobServerStatus> {
                 .with(FIELD_ID, serverStatus.getId())
                 .delete("from jobrunr_backgroundjobservers where id = :id");
         this
-                .insert(serverStatus, "into jobrunr_backgroundjobservers(id, name, workerPoolSize, pollIntervalInSeconds, firstHeartbeat, lastHeartbeat, running, systemTotalMemory, systemFreeMemory, systemCpuLoad, processMaxMemory, processFreeMemory, processAllocatedMemory, processCpuLoad, deleteSucceededJobsAfter, permanentlyDeleteJobsAfter) " +
-                        "values (:id, :name, :workerPoolSize, :pollIntervalInSeconds, :firstHeartbeat, :lastHeartbeat, :running, :systemTotalMemory, :systemFreeMemory, :systemCpuLoad, :processMaxMemory, :processFreeMemory, :processAllocatedMemory, :processCpuLoad, :deleteSucceededJobsAfter, :permanentlyDeleteJobsAfter)");
+                .insert(serverStatus, "into jobrunr_backgroundjobservers(id, name, workerPoolSize, pollIntervalInSeconds, firstHeartbeat, lastHeartbeat, running, serverGroup, systemTotalMemory, systemFreeMemory, systemCpuLoad, processMaxMemory, processFreeMemory, processAllocatedMemory, processCpuLoad, deleteSucceededJobsAfter, permanentlyDeleteJobsAfter) " +
+                        "values (:id, :name, :workerPoolSize, :pollIntervalInSeconds, :firstHeartbeat, :lastHeartbeat, :running, :serverGroup, :systemTotalMemory, :systemFreeMemory, :systemCpuLoad, :processMaxMemory, :processFreeMemory, :processAllocatedMemory, :processCpuLoad, :deleteSucceededJobsAfter, :permanentlyDeleteJobsAfter)");
     }
 
     public boolean signalServerAlive(BackgroundJobServerStatus serverStatus) throws SQLException {
@@ -99,7 +100,7 @@ public class BackgroundJobServerTable extends Sql<BackgroundJobServerStatus> {
     }
 
     public UUID getLongestRunningBackgroundJobServerId() {
-        return select("id from jobrunr_backgroundjobservers", new AmountRequest(FIELD_FIRST_HEARTBEAT, 1))
+        return select("id from jobrunr_backgroundjobservers where serverGroup = 'master'", new AmountRequest(FIELD_FIRST_HEARTBEAT, 1))
                 .map(sqlResultSet -> sqlResultSet.asUUID(FIELD_ID))
                 .findFirst()
                 .orElseThrow(() -> shouldNotHappenException("No servers available?!"));
