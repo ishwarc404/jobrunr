@@ -55,6 +55,7 @@ import static org.jobrunr.JobRunrException.problematicConfigurationException;
 import static org.jobrunr.server.BackgroundJobServerConfiguration.usingStandardBackgroundJobServerConfiguration;
 import static org.jobrunr.utils.JobUtils.assertJobExists;
 import static org.jobrunr.utils.VersionNumber.v;
+import java.util.concurrent.ScheduledFuture;
 
 public class BackgroundJobServer implements BackgroundJobServerMBean {
 
@@ -79,6 +80,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
     private volatile VersionNumber dataVersion;
     private volatile PlatformThreadPoolJobRunrExecutor zookeeperThreadPool;
     private JobRunrExecutor jobExecutor;
+    private volatile ScheduledFuture<?> jobStewardScheduledFuture;
 
     public BackgroundJobServer(StorageProvider storageProvider, JsonMapper jsonMapper) {
         this(storageProvider, jsonMapper, null);
@@ -215,6 +217,9 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
             if (isMaster) {
                 startJobZooKeepers();
                 runStartupTasks();
+                stopJobSteward();
+            } else {
+                startJobSteward();
             }
         } else {
             LOGGER.error("JobRunr BackgroundJobServer failed to start");
@@ -297,7 +302,28 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         // why fixedDelay: in case of long stop-the-world garbage collections, the zookeeper tasks will queue up
         // and all will be launched one after another
         zookeeperThreadPool.scheduleWithFixedDelay(serverZooKeeper, 0, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
-        zookeeperThreadPool.scheduleWithFixedDelay(jobSteward, min(configuration.getPollInterval().toMillis() / 5, 1000), configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
+        startJobSteward();
+    }
+
+
+    private void startJobSteward() {
+        if (zookeeperThreadPool != null && (jobStewardScheduledFuture == null || jobStewardScheduledFuture.isCancelled())) {
+            jobStewardScheduledFuture = zookeeperThreadPool.scheduleWithFixedDelay(
+                jobSteward,
+                min(configuration.getPollInterval().toMillis() / 5, 1000),
+                configuration.getPollInterval().toMillis(),
+                TimeUnit.MILLISECONDS
+            );
+            LOGGER.info("JobSteward started - this server will process enqueued jobs");
+        }
+    }
+
+    private void stopJobSteward() {
+        if (jobStewardScheduledFuture != null && !jobStewardScheduledFuture.isCancelled()) {
+            jobStewardScheduledFuture.cancel(false);
+            jobStewardScheduledFuture = null;
+            LOGGER.info("JobSteward stopped - this server will NOT process enqueued jobs");
+        }
     }
 
     private void startJobZooKeepers() {
@@ -313,6 +339,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
 
     private void stopZooKeepers() {
         serverZooKeeper.stop();
+        stopJobSteward();
         zookeeperThreadPool.stop(Duration.ofSeconds(10));
         this.zookeeperThreadPool = null;
     }

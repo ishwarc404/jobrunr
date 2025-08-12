@@ -206,6 +206,8 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
 
+
+    //Rewrite batched statements helps optimise this.
     @Override
     public List<Job> save(List<Job> jobs) {
         try (final Connection conn = dataSource.getConnection(); final Transaction transaction = new Transaction(conn)) {
