@@ -57,8 +57,30 @@ public class JobSteward extends JobHandler implements Runnable {
         occupiedWorkers.incrementAndGet();
     }
 
+    /*
+     *  Problem:
+        When a JobRunr server is designated as master, it should only schedule jobs
+        but not process them. However, the OnboardNewWorkTask was still being
+        triggered by worker thread callbacks in notifyThreadIdle(), causing the
+        master server to process jobs even after stopJobSteward() was called.
+
+        This typically occurs when:
+        1. Server starts up and begins processing jobs as a worker
+        2. Server becomes master and stopJobSteward() is called
+        3. Existing worker threads complete their jobs and call notifyThreadIdle()
+        4. notifyThreadIdle() triggers onboardNewWorkTask.runTaskThreadSafe()
+        5. Master server incorrectly processes new jobs
+
+        Solution:
+        Added master check in JobSteward.notifyThreadIdle() to prevent the
+        OnboardNewWorkTask from running when the server is in master mode.
+        This ensures proper separation between master (scheduling) and worker
+        (processing) responsibilities.
+    */
     public void notifyThreadIdle() {
         this.occupiedWorkers.decrementAndGet();
-        onboardNewWorkTask.runTaskThreadSafe();
+        if(!getBackgroundJobServer().isMaster()){
+            onboardNewWorkTask.runTaskThreadSafe();
+        }
     }
 }

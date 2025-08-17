@@ -217,8 +217,10 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
             if (isMaster) {
                 startJobZooKeepers();
                 runStartupTasks();
+                // We do this as we do not want master to run the jobs, we just want it to schedule it
                 stopJobSteward();
             } else {
+                // If it is not a master, we make it run the tasks too
                 startJobSteward();
             }
         } else {
