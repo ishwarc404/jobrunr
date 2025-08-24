@@ -57,4 +57,8 @@ public abstract class JobHandler implements Runnable {
     protected <T extends Task> T getTaskOfType(Class<T> clazz) {
         return StreamUtils.ofType(tasks, clazz).findFirst().orElseThrow(() -> new IllegalStateException("Unknown task of type " + clazz.getName()));
     }
+
+    protected BackgroundJobServer getBackgroundJobServer() {
+        return backgroundJobServer;
+    }
 }

@@ -743,5 +743,7 @@ public class LettuceRedisStorageProvider extends AbstractStorageProvider impleme
         return null;
     }
 
-
+    public Instant getJobScheduledAt(UUID id) {
+        return null;
+    }
 }

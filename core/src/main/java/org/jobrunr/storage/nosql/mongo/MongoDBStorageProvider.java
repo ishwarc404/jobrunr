@@ -572,4 +572,8 @@ public class MongoDBStorageProvider extends AbstractStorageProvider implements N
     public RecurringJobsResult getRecurringJobById(String id) {
         return null;
     }
+
+    public Instant getJobScheduledAt(UUID id) {
+        return null;
+    }
 }

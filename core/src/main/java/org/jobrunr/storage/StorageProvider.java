@@ -48,7 +48,7 @@ public interface StorageProvider extends AutoCloseable {
     Map<Long, Long> getRecurringJobsHash();
     Instant getLastSucceedJobUpdateTime();
     RecurringJobsResult getRecurringJobById(String id) throws JobNotFoundException;
-
+    Instant getJobScheduledAt(UUID id);
 
     void setJobMapper(JobMapper jobMapper);
 

@@ -206,6 +206,8 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
 
+
+    //Rewrite batched statements helps optimise this.
     @Override
     public List<Job> save(List<Job> jobs) {
         try (final Connection conn = dataSource.getConnection(); final Transaction transaction = new Transaction(conn)) {
@@ -228,6 +230,7 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
 
+    //Function to read job from jobrunr_jobs table by its ID
     @Override
     public Job getJobById(UUID id) {
         try (final Connection conn = dataSource.getConnection()) {
@@ -238,6 +241,31 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
             throw new StorageException(e);
         }
     }
+
+    //Custom function to get the scheduledAt time of a job by its ID
+    @Override
+    public Instant getJobScheduledAt(UUID jobId) {
+        String sql = "SELECT scheduledAt FROM jobrunr_jobs WHERE id = ?";
+
+        try (Connection conn = dataSource.getConnection();
+            PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, jobId.toString());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Timestamp ts = rs.getTimestamp("scheduledAt");
+                    return ts != null ? ts.toInstant() : null;
+                }
+                return null;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.error("Error querying scheduledAt for job: {}", jobId, e);
+            throw new StorageException(e);
+        }
+    }
+
 
     @Override
     public long countJobs(StateName state) {
@@ -417,7 +445,8 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     }
 
 
-    // Function to get the details of a recurring job by its ID
+    // Custom Function to get the details of a recurring job by its ID
+    @Override
     public RecurringJobsResult getRecurringJobById(String id) {
        try (final Connection conn = dataSource.getConnection()) {
             RecurringJobsResult result = new RecurringJobsResult(recurringJobTable(conn).selectOne(id));
