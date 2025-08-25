@@ -304,7 +304,14 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         // why fixedDelay: in case of long stop-the-world garbage collections, the zookeeper tasks will queue up
         // and all will be launched one after another
         zookeeperThreadPool.scheduleWithFixedDelay(serverZooKeeper, 0, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
-        startJobSteward();
+        
+        // External Master modification
+        // Only start JobSteward for non-master servers
+        if (!"master".equals(System.getenv("JOBRUNR_SERVER_GROUP"))) {
+            startJobSteward();
+        } else {
+            LOGGER.info("JobSteward NOT started, this server is master.");
+        }
     }
 
 
