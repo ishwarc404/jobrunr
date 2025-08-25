@@ -221,7 +221,10 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
                 stopJobSteward();
             } else {
                 // If it is not a master, we make it run the tasks too
-                startJobSteward();
+                // But we first thoroughly verify if it might be a potential master
+                if (!"master".equals(System.getenv("JOBRUNR_SERVER_GROUP"))) {
+                    startJobSteward();
+                }
             }
         } else {
             LOGGER.error("JobRunr BackgroundJobServer failed to start");

@@ -133,6 +133,7 @@ public abstract class AbstractJobScheduler {
         storageProvider.validateRecurringJobInterval(recurringJob.durationBetweenRecurringJobInstances());
         RecurringJob savedRecurringJob = this.storageProvider.saveRecurringJob(recurringJob);
         jobFilterUtils.runOnCreatedFilter(recurringJob);
+        LOGGER.info("[id:{}] [recurringJobId:{}] [jobName:{}] recurring job created", savedRecurringJob.getId(), savedRecurringJob.getId(), savedRecurringJob.getJobName());
         return savedRecurringJob.getId();
     }
 
@@ -142,7 +143,7 @@ public abstract class AbstractJobScheduler {
             jobFilterUtils.runOnCreatingFilter(job);
             Job savedJob = this.storageProvider.save(job);
             jobFilterUtils.runOnCreatedFilter(savedJob);
-            LOGGER.debug("Created Job with id {}", job.getId());
+            LOGGER.info("[id:{}] [recurringJobId:{}] [jobName:{}] onetime job created and scheduled", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
         } catch (ConcurrentJobModificationException e) {
             LOGGER.info("Skipped Job with id {} as it already exists", job.getId());
         }
