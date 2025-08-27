@@ -444,6 +444,23 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
 
+    @Override
+    public long countRecurringJobs() {
+        try (final Connection conn = dataSource.getConnection()) {
+            return recurringJobTable(conn).selectCount();
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
+    @Override
+    public List<RecurringJob> getRecurringJobsBatch(long offset, int limit) {
+        try (final Connection conn = dataSource.getConnection()) {
+            return recurringJobTable(conn).selectAllWithPagination(offset, limit);
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
 
     // Custom Function to get the details of a recurring job by its ID
     @Override

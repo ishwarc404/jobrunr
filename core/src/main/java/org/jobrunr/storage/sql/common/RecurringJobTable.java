@@ -75,7 +75,17 @@ public class RecurringJobTable extends Sql<RecurringJob> {
         .collect(Collectors.toList());
     }
 
+    public long selectCount() throws SQLException {
+        return selectCount("from jobrunr_recurring_jobs");
+    }
 
+    public List<RecurringJob> selectAllWithPagination(long offset, int limit) throws SQLException {
+        with("limit", limit);
+        with("offset", offset);
+        return select("jobAsJson from jobrunr_recurring_jobs ORDER BY createdAt ASC " + dialect.limitAndOffset())
+                .map(this::toRecurringJob)
+                .collect(toList());
+    }
 
     public long count() throws SQLException {
         return selectCount("from jobrunr_recurring_jobs");

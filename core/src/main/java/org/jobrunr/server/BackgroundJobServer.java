@@ -241,8 +241,10 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         }
     }
 
+    // Commented this out as we are not going to run db migration on large databases
     public boolean isNotReadyToProcessJobs() {
-        return !(isAnnounced() && hasDataVersion(v("6.0.0")));
+        // return !(isAnnounced() && hasDataVersion(v("6.0.0")));
+        return !(isAnnounced());
     }
 
     @Override
@@ -339,14 +341,30 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
     }
 
     private void startJobZooKeepers() {
+        LOGGER.info("[DEBUG]: Starting JobZooKeepers...");
         long delay = min(configuration.getPollInterval().toMillis() / 5, 1000);
+        LOGGER.info("[DEBUG]: Delay calculated: {}ms", delay);
+        
         // Taking care of processing and scheduling jobs
-        JobZooKeeper recurringAndScheduledJobsZooKeeper = new JobZooKeeper(this, new ProcessRecurringJobsTask(this), new ProcessScheduledJobsTask(this));
+        LOGGER.info("[DEBUG]: Creating ProcessRecurringJobsTask...");
+        ProcessRecurringJobsTask processRecurringJobsTask = new ProcessRecurringJobsTask(this);
+        LOGGER.info("[DEBUG]: ProcessRecurringJobsTask created successfully");
+        
+        LOGGER.info("[DEBUG]: Creating ProcessScheduledJobsTask...");
+        ProcessScheduledJobsTask processScheduledJobsTask = new ProcessScheduledJobsTask(this);
+        LOGGER.info("[DEBUG]: ProcessScheduledJobsTask created successfully");
+        
+        LOGGER.info("[DEBUG]: Creating JobZooKeepers...");
+        JobZooKeeper recurringAndScheduledJobsZooKeeper = new JobZooKeeper(this, processRecurringJobsTask, processScheduledJobsTask);
         JobZooKeeper orphanedJobsZooKeeper = new JobZooKeeper(this, new ProcessOrphanedJobsTask(this));
         JobZooKeeper janitorZooKeeper = new JobZooKeeper(this, new DeleteSucceededJobsTask(this), new DeleteDeletedJobsPermanentlyTask(this));
+        LOGGER.info("[DEBUG]: JobZooKeepers created successfully");
+        
+        LOGGER.info("[DEBUG]: Scheduling JobZooKeepers...");
         zookeeperThreadPool.scheduleWithFixedDelay(recurringAndScheduledJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(orphanedJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(janitorZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
+        LOGGER.info("[DEBUG]: JobZooKeepers scheduled successfully");
     }
 
     private void stopZooKeepers() {
@@ -368,13 +386,14 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         this.jobExecutor = null;
     }
 
+    // Commented out two large db scan functions
     private void runStartupTasks() {
         try {
             ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
             singleThreadExecutor.submit(new StartupTask(
                     new CreateClusterIdIfNotExists(this),
-                    new CheckIfAllJobsExistTask(this),
-                    new MigrateFromV5toV6Task(this),
+                    // new CheckIfAllJobsExistTask(this),
+                    // new MigrateFromV5toV6Task(this), 
                     new ShutdownExecutorServiceTask(singleThreadExecutor)
             ));
         } catch (Exception notImportant) {

@@ -746,4 +746,12 @@ public class LettuceRedisStorageProvider extends AbstractStorageProvider impleme
     public Instant getJobScheduledAt(UUID id) {
         return null;
     }
+
+    public List<RecurringJob> getRecurringJobsBatch(long offset, int limit) {
+        return null;
+    }
+
+    public long countRecurringJobs() {
+        return 0L;
+    }
 }

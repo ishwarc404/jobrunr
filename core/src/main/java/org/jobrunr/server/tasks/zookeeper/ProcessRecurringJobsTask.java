@@ -14,6 +14,8 @@ import java.util.logging.Logger;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 import java.time.Duration;
+import java.time.LocalTime;
+import java.util.Arrays;
 
 import static org.jobrunr.jobs.states.StateName.ENQUEUED;
 import static org.jobrunr.jobs.states.StateName.PROCESSING;
@@ -30,10 +32,13 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
     //Here we fetch all the existingJobs in jobrunr_jobs to check if the job is already scheduled, enqueued or processing
     Map<String,Long> existingById;
+    
+    private boolean hasLoggedHourlyAudit = false; // Flag to ensure hourly audit is logged only once on master boot
 
 
     public ProcessRecurringJobsTask(BackgroundJobServer backgroundJobServer) {
         super(backgroundJobServer);
+        LOGGER.info("ProcessRecurringJobsTask starting.... ");
         this.recurringJobRuns = new HashMap<>();
         this.recurringJobHash = new HashMap<>();
         this.recurringJobs = new RecurringJobsResult();
@@ -41,8 +46,8 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
     @Override
     protected void runTask() {
-        LOGGER.trace("Looking for recurring jobs... ");
-
+        
+        LOGGER.info("Run task..... ");
         Instant initialRunStartTime = runStartTime();
 
         // Check if the current instance is the master instance
@@ -57,6 +62,12 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
             initialRunStartTime = oneMinuteAgo.isAfter(lastSuccess) ? oneMinuteAgo : lastSuccess;
             LOGGER.info("[FLUXCAPACITOR]: Time travelling to: " + initialRunStartTime);
             this.amIMaster = true; // set this instance as the master instance only in the context of ProcessRecurringJobsTask
+        }
+        
+        // Audit hourly job distribution on master bootup
+        if (this.amIMaster && !hasLoggedHourlyAudit) {
+            logHourlyJobDistribution();
+            hasLoggedHourlyAudit = true;
         }
 
         Instant from = initialRunStartTime;        
@@ -82,13 +93,58 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
     private List<RecurringJob> getRecurringJobs() {
         if (recurringJobs == null || recurringJobs.isEmpty()) {
-            // first time, just fetch all from the database
-            LOGGER.info("[BOOTUP]: Boot up time, fetching all recurring jobs.");
-            long fetchStart = System.currentTimeMillis();
-            this.recurringJobs = storageProvider.getRecurringJobs();
-            long fetchEnd = System.currentTimeMillis();
-            LOGGER.info("[BOOTUP]: First time fetch duration: " + (fetchEnd - fetchStart) + "ms");
-            LOGGER.info("[BOOTUP]: First time fetch size: " + recurringJobs.size());
+            // first time, check job count and decide batching strategy
+            LOGGER.info("[BOOTUP]: Boot up time, checking recurring job count...");
+            long countStart = System.currentTimeMillis();
+            long totalJobs = storageProvider.countRecurringJobs();
+            long countEnd = System.currentTimeMillis();
+            LOGGER.info("[BOOTUP]: Total recurring jobs: " + totalJobs + " (count query took " + (countEnd - countStart) + "ms)");
+            
+            if (totalJobs > 1000_000) {
+                // Use batched loading for large datasets
+                LOGGER.info("[BOOTUP]: Large dataset detected (" + totalJobs + " jobs). Using batched loading with 1M batch size.");
+                List<RecurringJob> allJobs = new ArrayList<>();
+                int batchSize = 1000_000;
+                long offset = 0;
+                int batchNumber = 1;
+                long totalFetchTime = 0;
+                long totalJobsLoaded = 0;
+                
+                while (offset < totalJobs) {
+                    long batchStart = System.currentTimeMillis();
+                    List<RecurringJob> batch = storageProvider.getRecurringJobsBatch(offset, batchSize);
+                    long batchEnd = System.currentTimeMillis();
+                    long batchDuration = batchEnd - batchStart;
+                    totalFetchTime += batchDuration;
+                    totalJobsLoaded += batch.size();
+                    
+                    allJobs.addAll(batch);
+                    
+                    // Calculate progress percentage
+                    double progressPercent = Math.min(100.0, (double) totalJobsLoaded / totalJobs * 100.0);
+                    
+                    LOGGER.info("[BOOTUP]: Batch " + batchNumber + " - offset=" + offset + 
+                               " fetched=" + batch.size() + " jobs in " + batchDuration + "ms" +
+                               " | Progress: " + String.format("%.1f", progressPercent) + "% (" + 
+                               totalJobsLoaded + "/" + totalJobs + ")");
+                    
+                    offset += batchSize;
+                    batchNumber++;
+                }
+                
+                this.recurringJobs = new RecurringJobsResult(allJobs);
+                LOGGER.info("[BOOTUP]: Batched loading completed. Total jobs loaded: " + allJobs.size() + 
+                           " in " + totalFetchTime + "ms across " + (batchNumber - 1) + " batches (100.0%)");
+            } else {
+                // Use existing single fetch for smaller datasets
+                LOGGER.info("[BOOTUP]: Small dataset (" + totalJobs + " jobs). Using single fetch.");
+                long fetchStart = System.currentTimeMillis();
+                this.recurringJobs = storageProvider.getRecurringJobs();
+                long fetchEnd = System.currentTimeMillis();
+                LOGGER.info("[BOOTUP]: Single fetch duration: " + (fetchEnd - fetchStart) + "ms");
+                LOGGER.info("[BOOTUP]: Single fetch size: " + recurringJobs.size());
+            }
+            
             return recurringJobs;
         }
 
@@ -236,5 +292,72 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
     private void registerRecurringJobRun(RecurringJob recurringJob, Instant upUntil) {
         recurringJobRuns.put(recurringJob.getId(), upUntil);
+    }
+    
+
+
+    //Audit function
+    private void logHourlyJobDistribution() {
+        try {
+            List<RecurringJob> jobs = getRecurringJobs();
+            int[] hourCounts = new int[24];
+            
+            for (RecurringJob job : jobs) {
+                try {
+                    String cronExpression = job.getScheduleExpression();
+                    if (cronExpression != null) {
+                        int[] hours = parseHoursFromCron(cronExpression);
+                        for (int hour : hours) {
+                            if (hour >= 0 && hour < 24) {
+                                hourCounts[hour]++;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    LOGGER.warn("Failed to parse cron for job: " + job.getId(), e);
+                }
+            }
+            
+            // Log the distribution
+            StringBuilder auditLog = new StringBuilder("[AUDIT]: Hourly job distribution - [");
+            for (int i = 0; i < 24; i++) {
+                if (i > 0) auditLog.append(", ");
+                auditLog.append(i).append(":").append(hourCounts[i]);
+            }
+            auditLog.append("]");
+            LOGGER.info(auditLog.toString());
+            
+        } catch (Exception e) {
+            LOGGER.error("Failed to log hourly job distribution audit", e);
+        }
+    }
+
+    private int[] parseHoursFromCron(String cronExpression) {
+        try {
+            String[] parts = cronExpression.trim().split("\\s+");
+            
+            // Determine if this is 5-field or 6-field cron and get hour field
+            String hourPart;
+            if (parts.length == 5) {
+                // Standard 5-field cron: minute hour day-of-month month day-of-week
+                hourPart = parts[1];
+            } else if (parts.length == 6) {
+                // 6-field cron with seconds: second minute hour day-of-month month day-of-week
+                hourPart = parts[2];
+            } else {
+                return new int[0]; // Return empty array for invalid cron
+            }
+            
+            if ("*".equals(hourPart)) {
+                return new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+            } else if (hourPart.contains(",")) {
+                String[] hours = hourPart.split(",");
+                return Arrays.stream(hours).mapToInt(h -> Integer.parseInt(h.trim())).toArray();
+            } else {
+                return new int[]{Integer.parseInt(hourPart)};
+            }
+        } catch (Exception e) {
+            return new int[0]; // Return empty array for parsing failures
+        }
     }
 }

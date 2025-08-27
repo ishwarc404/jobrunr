@@ -233,6 +233,22 @@ public interface StorageProvider extends AutoCloseable {
      */
     RecurringJobsResult getRecurringJobs();
 
+    /**
+     * Returns the total count of recurring jobs in the storage.
+     *
+     * @return the total number of recurring jobs
+     */
+    long countRecurringJobs();
+
+    /**
+     * Returns a batch of recurring jobs with pagination support.
+     *
+     * @param offset the starting position (0-based)
+     * @param limit the maximum number of jobs to return
+     * @return a list of recurring jobs for the specified page
+     */
+    List<RecurringJob> getRecurringJobsBatch(long offset, int limit);
+
     boolean recurringJobsUpdated(Long recurringJobsUpdatedHash);
 
     /**
