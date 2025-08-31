@@ -138,7 +138,7 @@ public class BackgroundJobPerformer implements Runnable {
                 throw ex;
             }
         } catch (Exception badException) {
-            LOGGER.error("[id:{}] [recurringJobId:{}] [jobName:{}] ERROR - could not update job to FAILED state", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName(), badException);
+            LOGGER.error("[id:{}] [recurringJobId:{}] [jobName:{}]   - could not update job to FAILED state", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName(), badException);
         }
     }
 

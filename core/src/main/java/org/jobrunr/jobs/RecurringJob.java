@@ -5,15 +5,20 @@ import org.jobrunr.jobs.states.JobState;
 import org.jobrunr.jobs.states.ScheduledState;
 import org.jobrunr.scheduling.Schedule;
 import org.jobrunr.scheduling.ScheduleExpressionType;
+import org.jobrunr.scheduling.cron.CronExpression;
 import org.jobrunr.storage.StorageProviderUtils;
 import org.jobrunr.utils.StringUtils;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +40,7 @@ public class RecurringJob extends AbstractJob {
     private String scheduleExpression;
     private String zoneId;
     private Instant createdAt;
+    private long hourOfExecutionBitSet;
 
     private RecurringJob() {
         // used for deserialization
@@ -58,6 +64,7 @@ public class RecurringJob extends AbstractJob {
         this.zoneId = zoneId.getId();
         this.scheduleExpression = schedule.toString();
         this.createdAt = createdAt;
+        this.hourOfExecutionBitSet = calculateHourBitSet(schedule);
     }
 
     @Override
@@ -67,6 +74,10 @@ public class RecurringJob extends AbstractJob {
 
     public String getScheduleExpression() {
         return scheduleExpression;
+    }
+
+    public long getHourOfExecutionBitSet() {
+        return hourOfExecutionBitSet;
     }
 
     /**
@@ -158,5 +169,25 @@ public class RecurringJob extends AbstractJob {
         Instant run1 = schedule.next(base, base, ZoneOffset.UTC);
         Instant run2 = schedule.next(base, run1, ZoneOffset.UTC);
         return between(run1, run2);
+    }
+
+    private long calculateHourBitSet(Schedule schedule) {
+      if (schedule instanceof CronExpression) {
+          BitSet hours = ((CronExpression) schedule).getHours();
+          long bitSet = 0L;
+          ZoneId jobZone = ZoneId.of(this.zoneId);
+
+          for (int hour = hours.nextSetBit(0); hour >= 0; hour = hours.nextSetBit(hour + 1)) {
+              // Convert job timezone hour to UTC hour
+              LocalDateTime jobTime = LocalDate.now().atTime(hour, 0);
+              ZonedDateTime jobZoned = jobTime.atZone(jobZone);
+              ZonedDateTime utcZoned = jobZoned.withZoneSameInstant(ZoneOffset.UTC);
+              int utcHour = utcZoned.getHour();
+
+              bitSet |= (1L << utcHour);
+          }
+          return bitSet;
+        }
+        return 0xFFFFFFL; // All 24 hours for non-cron schedules
     }
 }

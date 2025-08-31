@@ -883,4 +883,28 @@ public class ElasticSearchStorageProvider extends AbstractStorageProvider implem
     public long countRecurringJobs() {
         return 0L;
     }
+
+    public RecurringJobsResult getRecurringJobsByHours(long hourMask) {
+        return null; // Not implemented for ElasticSearchStorageProvider
+    }
+
+    @Override
+    public boolean recurringJobsUpdatedByHours(Long recurringJobsUpdatedHash, long hourMask) {
+        return false; // Not implemented for ElasticSearchStorageProvider
+    }
+
+    @Override
+    public Map<Long, Long> getRecurringJobsHashByHours(long hourMask) {
+        return null; // Not implemented for ElasticSearchStorageProvider
+    }
+
+    @Override
+    public List<RecurringJob> getRecurringJobsPageByHours(long windowStart, long windowEnd, long hourMask) {
+        return null; // Not implemented for ElasticSearchStorageProvider
+    }
+
+    @Override
+    public Map<String, Long> recurringJobsExistsByHours(long hourMask, StateName... states) {
+        return null; // Not implemented for ElasticSearchStorageProvider
+    }
 }

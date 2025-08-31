@@ -25,7 +25,7 @@ public class PlatformThreadPoolJobRunrExecutor extends java.util.concurrent.Sche
         super(corePoolSize, new NamedThreadFactory(threadNamePrefix));
         this.workerCount = corePoolSize;
         setMaximumPoolSize(maxPoolSize);
-        setKeepAliveTime(1, TimeUnit.MINUTES);
+        setKeepAliveTime(5, TimeUnit.MINUTES); // Increased from 1 to 5 minutes
     }
 
     @Override

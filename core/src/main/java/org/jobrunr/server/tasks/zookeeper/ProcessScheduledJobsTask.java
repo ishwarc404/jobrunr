@@ -17,11 +17,12 @@ public class ProcessScheduledJobsTask extends AbstractJobZooKeeperTask {
     public ProcessScheduledJobsTask(BackgroundJobServer backgroundJobServer) {
         super(backgroundJobServer);
         this.pageRequestSize = backgroundJobServer.getConfiguration().getScheduledJobsRequestSize();
+        LOGGER.info("[PROCESS SCHEDULED JOBS]: Constructor completed.");
     }
 
     @Override
     protected void runTask() {
-        LOGGER.debug("Looking for scheduled jobs... ");
+        LOGGER.info("[PROCESS SCHEDULED JOBS]: Looking for scheduled jobs... ");
         Instant scheduledBefore = now().plus(backgroundJobServerConfiguration().getPollInterval());
         processManyJobs(
             previousResults -> {

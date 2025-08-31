@@ -297,7 +297,12 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     @Override
     public List<Job> getScheduledJobs(Instant scheduledBefore, AmountRequest amountRequest) {
         try (final Connection conn = dataSource.getConnection()) {
-            return jobTable(conn).selectJobsScheduledBefore(scheduledBefore, amountRequest);
+            long start = System.currentTimeMillis();
+            LOGGER.info("[SCHEDULED JOBS]: Fetching jobs to schedule..");
+            final List<Job> savedJobs = jobTable(conn).selectJobsScheduledBefore(scheduledBefore, amountRequest);
+            long duration = System.currentTimeMillis() - start;
+            LOGGER.info("[SCHEDULED JOBS]: Fetched " + savedJobs.size() + " jobs in: " + duration + "ms");
+            return savedJobs;
         } catch (SQLException e) {
             throw new StorageException(e);
         }
@@ -396,6 +401,46 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
             throw new StorageException(e);
         }
     }
+
+    @Override
+    public Map<String, Long> recurringJobsExistsByHours(long hourMask, StateName... states) {
+
+        long start = System.currentTimeMillis();
+        LOGGER.info("[RECURRING JOBS]: Fetching existance report..");
+
+        String sql =
+            "SELECT j.recurringJobId, COUNT(*) AS jobCount " +
+            "  FROM jobrunr_jobs j " +
+            " WHERE j.state IN ('SCHEDULED','ENQUEUED','PROCESSING') " +
+            "   AND j.recurringJobId IN (" +
+            "     SELECT id FROM jobrunr_recurring_jobs " +
+            "     WHERE (hourOfExecutionBits & ?) > 0" +
+            "   ) " +
+            " GROUP BY j.recurringJobId";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setLong(1, hourMask);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                Map<String, Long> counts = new HashMap<>();
+                while (rs.next()) {
+                    String id = rs.getString("recurringJobId");
+                    long cnt = rs.getLong("jobCount");
+                    counts.put(id, cnt);
+                }
+
+                long duration = System.currentTimeMillis() - start;
+                LOGGER.info("[RECURRING JOBS]: Fetched existance report in: " + duration + "ms");
+                return counts;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.error("Error running recurringJobsExistsByHours", e);
+            throw new StorageException(e);
+        }
+    }
     
     public Instant getLastSucceedJobUpdateTime() {
         String sql = "SELECT updatedAt FROM jobrunr_jobs WHERE state = 'SUCCEEDED' ORDER BY updatedAt DESC LIMIT 1";
@@ -439,6 +484,84 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         try (final Connection conn = dataSource.getConnection()) {
             RecurringJobsResult result = new RecurringJobsResult(recurringJobTable(conn).selectAll());
             return result;
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
+    @Override
+    public RecurringJobsResult getRecurringJobsByHours(long hourMask) {
+        try (final Connection conn = dataSource.getConnection()) {
+            RecurringJobsResult result = new RecurringJobsResult(recurringJobTable(conn).selectByHourMask(hourMask));
+            return result;
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
+    @Override
+    public boolean recurringJobsUpdatedByHours(Long recurringJobsUpdatedHash, long hourMask) {
+        try (final Connection conn = dataSource.getConnection()) {
+            Long currentHash = recurringJobTable(conn).selectHashByHourMask(hourMask);
+            return !recurringJobsUpdatedHash.equals(currentHash);
+        } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
+    @Override
+    public Map<Long, Long> getRecurringJobsHashByHours(long hourMask) {
+        String sql =
+        "WITH RECURSIVE\n" +
+        "  first_ts AS (\n" +
+        "    SELECT MIN(createdAt) AS ts, MAX(createdAt) AS max_ts FROM jobrunr_recurring_jobs WHERE (hourOfExecutionBits & ?) > 0\n" +
+        "  ),\n" +
+        "  bucket_defs AS (\n" +
+        "    SELECT ts, CEIL((max_ts - ts) / 43200000) AS total_buckets FROM first_ts\n" +
+        "  ),\n" +
+        "  seq AS (\n" +
+        "    SELECT 0 AS bucket_idx FROM bucket_defs\n" +
+        "    UNION ALL\n" +
+        "    SELECT bucket_idx + 1 FROM seq JOIN bucket_defs ON bucket_idx + 1 < bucket_defs.total_buckets\n" +
+        "  ),\n" +
+        "  aggregates AS (\n" +
+        "    SELECT (j.createdAt - f.ts) DIV 43200000 AS bucket_idx, SUM(j.createdAt) AS window_hash\n" +
+        "    FROM jobrunr_recurring_jobs j CROSS JOIN first_ts f\n" +
+        "    WHERE (j.hourOfExecutionBits & ?) > 0\n" +
+        "    GROUP BY bucket_idx\n" +
+        "  )\n" +
+        "SELECT (f.ts + s.bucket_idx * 43200000) AS window_start_epoch, COALESCE(a.window_hash, 0) AS window_hash\n" +
+        "FROM seq s CROSS JOIN first_ts f LEFT JOIN aggregates a USING(bucket_idx)\n" +
+        "ORDER BY s.bucket_idx";
+    
+        Map<Long, Long> windowHashMap = new LinkedHashMap<>();
+    
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setLong(1, hourMask);  // First hourMask parameter
+            ps.setLong(2, hourMask);  // Second hourMask parameter
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    long windowStartEpoch = rs.getLong("window_start_epoch");
+                    long windowHash = rs.getLong("window_hash");
+                    windowHashMap.put(windowStartEpoch, windowHash);
+                }
+            }
+    
+        } catch (SQLException e) {
+            LOGGER.error("Error running getRecurringJobsHashByHours", e);
+            throw new StorageException(e);
+        }
+    
+        return windowHashMap;
+    }
+
+    @Override
+    public List<RecurringJob> getRecurringJobsPageByHours(long windowStart, long windowEnd, long hourMask) {
+        try (final Connection conn = dataSource.getConnection()) {
+            return recurringJobTable(conn).selectPageByHourMask(windowStart, windowEnd, hourMask);
         } catch (SQLException e) {
             throw new StorageException(e);
         }
