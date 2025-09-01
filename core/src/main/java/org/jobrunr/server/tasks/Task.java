@@ -44,6 +44,7 @@ public abstract class Task {
     public void run(TaskRunInfo runInfo) {
         try {
             this.runInfo = runInfo;
+            // We need to make sure we finish PROCESS RECURRING TASKS before poll interval gets over
             if (pollIntervalInSecondsTimeBoxIsAboutToPass()) return;
             long startTime = System.nanoTime();
             runTask();

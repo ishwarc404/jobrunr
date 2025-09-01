@@ -26,13 +26,13 @@ import static org.jobrunr.jobs.states.StateName.SCHEDULED;
 public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
     private Boolean amIMaster = false; // This is used to check if the current instance is the master instance, jobrunr knows that it is master, but in context of ProcessRecurringJobsTask, we don't
-    private final Map<String, Instant> recurringJobRuns; 
+    private final Map<String, Instant> recurringJobRuns; // This is populated in registerRecurringJobRun
     private RecurringJobsResult recurringJobs; // This stores all the millions of jobs
     private Map<Long, Long> recurringJobHash; // This will store the epoch time of window start of X amount time, and the hash of the jobs in that window
     //If the window start time's hash is same as in memory, we don't need to fetch the jobs again
 
     //Here we fetch all the existingJobs in jobrunr_jobs to check if the job is already scheduled, enqueued or processing
-    Map<String,Long> existingById;
+    Map<String,Long> existingJobsById;
     
     private boolean hasLoggedHourlyAudit = false; // Flag to ensure hourly audit is logged only once on master boot
     private Integer currentHour = null; // Current UTC hour for filtering
@@ -55,15 +55,15 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
         // Check if the current instance is the master instance
         if (!this.amIMaster) {
-            LOGGER.info("[FLUXCAPACITOR]: This instance was not the master instance. Looks like a crash happened. Let's go back in time.");
-            Instant oneMinuteAgo = initialRunStartTime.minus(Duration.ofMinutes(1));
+            LOGGER.info("[BOOTUP][FLUXCAPACITOR]: This instance was not the master instance. Looks like a crash happened. Let's go back in time.");
+            Instant fewMinuteAgo = initialRunStartTime.minus(Duration.ofMinutes(1));
             Instant lastSuccess = storageProvider.getLastSucceedJobUpdateTime();
-            LOGGER.info("[FLUXCAPACITOR]: Initial start time: " + initialRunStartTime);
-            LOGGER.info("[FLUXCAPACITOR]: Last success time: " + lastSuccess);
-            LOGGER.info("[FLUXCAPACITOR]: One minute ago: " + oneMinuteAgo);
+            LOGGER.info("[BOOTUP][FLUXCAPACITOR]: Initial start time: " + initialRunStartTime);
+            LOGGER.info("[BOOTUP][FLUXCAPACITOR]: Last success time: " + lastSuccess);
+            LOGGER.info("[BOOTUP][FLUXCAPACITOR]: One minute ago: " + fewMinuteAgo);
             // Time travel to the last success time
-            initialRunStartTime = oneMinuteAgo.isAfter(lastSuccess) ? oneMinuteAgo : lastSuccess;
-            LOGGER.info("[FLUXCAPACITOR]: Time travelling to: " + initialRunStartTime);
+            initialRunStartTime = fewMinuteAgo.isAfter(lastSuccess) ? fewMinuteAgo : lastSuccess;
+            LOGGER.info("[BOOTUP][FLUXCAPACITOR]: Time travelling to: " + initialRunStartTime);
             this.amIMaster = true; // set this instance as the master instance only in the context of ProcessRecurringJobsTask
         }
 
@@ -77,7 +77,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         long hourMask = (1L << currentHour);
         
         //This code fetches the existing jobs in the database which are already scheduled, enqueued or processing
-        existingById = fetchExistingCountsByHours(hourMask); //optimized for hour-based filtering
+        existingJobsById = fetchExistingCountsByHours(hourMask); //optimized for hour-based filtering
 
         convertAndProcessManyJobs(recurringJobs,
                 recurringJob -> toScheduledJobs(recurringJob, from, upUntil),
@@ -142,7 +142,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         //This logic checks if the recurring jobs have been updated in the database
         //If the hash of the jobs in the database is same as in memory, we don't need to fetch the jobs again
         if (!storageProvider.recurringJobsUpdatedByHours(recurringJobs.getLastModifiedHash(), hourMask)) {
-            LOGGER.info("[RECURRINGJOBHASH]: Hour-filtered recurring jobs have not been updated in the database. We can use the cached jobs.");
+            LOGGER.info("[RECURRING JOB HASH]: Hour-filtered recurring jobs have not been updated in the database. We can use the cached jobs.");
             return recurringJobs;
         }
     
@@ -152,13 +152,13 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
          We do need to fetch the hashes of the windows again.
         */
 
-        LOGGER.info("[RECURRINGJOBHASH]: The hour-filtered recurring jobs have changed in the database. We need to fetch the hash windows again.");
+        LOGGER.info("[RECURRING JOB HASH]: The hour-filtered recurring jobs have changed in the database. We need to fetch the hash windows again.");
         // This is a heavy operation, so we need to do it only if the hash has changed
         // We will fetch hash windows only for the smaller subset of jobs we determined with hourOfExecution column
         Instant recurringJobHashStart = Instant.now();
         this.recurringJobHash = storageProvider.getRecurringJobsHashByHours(hourMask);
         Instant recurringJobHashEnd = Instant.now();
-        LOGGER.info("[RECURRINGJOBHASH]: Hour-filtered recurring job hash fetch duration: " + Duration.between(recurringJobHashStart, recurringJobHashEnd).toMillis() + "ms");
+        LOGGER.info("[RECURRING JOB HASH]: Hour-filtered recurring job hash fetch duration: " + Duration.between(recurringJobHashStart, recurringJobHashEnd).toMillis() + "ms");
 
         // make a mutable copy and sort by createdAt ascending
         List<RecurringJob> mutable = new ArrayList<>(recurringJobs);
@@ -195,13 +195,13 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
 
             if (localHash != dbHash) {
-                LOGGER.info("[RECURRINGJOBHASH]: 🚨 Hash mismatch at offset: " + windowStart + ". Will fetch fresh hour-filtered page.");
+                LOGGER.info("[RECURRING JOB HASH]: 🚨 Hash mismatch at offset: " + windowStart + ". Will fetch fresh hour-filtered page.");
                 // fetch only that N‑minute batch from database with hour filtering
                 Instant fetchStart = Instant.now();
                 List<RecurringJob> fresh = storageProvider.getRecurringJobsPageByHours(windowStart, windowEnd, hourMask);
                 Instant fetchEnd = Instant.now();
-                LOGGER.info("[RECURRINGJOBHASH]: Fresh hour-filtered page fetch duration: " + Duration.between(fetchStart, fetchEnd).toMillis() + "ms");
-                LOGGER.info("[RECURRINGJOBHASH]: Fresh hour-filtered page size: " + fresh.size());
+                LOGGER.info("[RECURRING JOB HASH]: Fresh hour-filtered page fetch duration: " + Duration.between(fetchStart, fetchEnd).toMillis() + "ms");
+                LOGGER.info("[RECURRING JOB HASH]: Fresh hour-filtered page size: " + fresh.size());
                 // replace in existing recurringJobs list
                 // find the range in the current list that belongs to [ws,we)
                 int startIdx = firstIndexOfTimestamp(mutable, windowStart);
@@ -265,15 +265,15 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     }
 
     private Map<String, Long> fetchExistingCounts() {
-        Map<String, Long> existingById = new HashMap<>();
-        existingById = storageProvider.recurringJobsExists(SCHEDULED, ENQUEUED, PROCESSING);
-        return existingById;
+        Map<String, Long> existingJobsById = new HashMap<>();
+        existingJobsById = storageProvider.recurringJobsExists(SCHEDULED, ENQUEUED, PROCESSING);
+        return existingJobsById;
     }
 
     private Map<String, Long> fetchExistingCountsByHours(long hourMask) {
-        Map<String, Long> existingById = new HashMap<>();
-        existingById = storageProvider.recurringJobsExistsByHours(hourMask, SCHEDULED, ENQUEUED, PROCESSING);
-        return existingById;
+        Map<String, Long> existingJobsById = new HashMap<>();
+        existingJobsById = storageProvider.recurringJobsExistsByHours(hourMask, SCHEDULED, ENQUEUED, PROCESSING);
+        return existingJobsById;
     }
 
     // private boolean isAlreadyScheduledEnqueuedOrProcessing(RecurringJob recurringJob) {
@@ -282,7 +282,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
 
     private boolean isAlreadyScheduledEnqueuedOrProcessing(RecurringJob recurringJob) {
         // true if we saw ≥1 existing job for this ID
-        return existingById.getOrDefault(recurringJob.getId(), 0L) > 0;
+        return existingJobsById.getOrDefault(recurringJob.getId(), 0L) > 0;
     }
     
 
