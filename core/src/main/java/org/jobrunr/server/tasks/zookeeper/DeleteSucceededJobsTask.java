@@ -22,7 +22,7 @@ public class DeleteSucceededJobsTask extends AbstractJobZooKeeperTask {
 
     @Override
     protected void runTask() {
-        LOGGER.trace("Looking for succeeded jobs that can go to the deleted state... ");
+        LOGGER.info("[DELETE SUCCEEDED JOBS]: Looking for succeeded jobs that can go to the deleted state... ");
         final Instant updatedBefore = now().minus(backgroundJobServerConfiguration().getDeleteSucceededJobsAfter());
         processManyJobs(previousResults -> getSucceededJobs(updatedBefore, previousResults),
                 job -> job.delete("JobRunr maintenance - deleting succeeded job"),
@@ -38,6 +38,6 @@ public class DeleteSucceededJobsTask extends AbstractJobZooKeeperTask {
         if (totalAmountOfSucceededJobs > 0) {
             storageProvider.publishTotalAmountOfSucceededJobs(totalAmountOfSucceededJobs);
         }
-        LOGGER.debug("Found {} succeeded jobs that moved to DELETED state as part of JobRunr maintenance", totalAmountOfSucceededJobs);
+        LOGGER.info("[DELETE SUCCEEDED JOBS]: Found {} succeeded jobs that moved to DELETED state as part of JobRunr maintenance", totalAmountOfSucceededJobs);
     }
 }

@@ -78,7 +78,7 @@ public class BackgroundJobPerformer implements Runnable {
 
             job.startProcessingOn(backgroundJobServer);
             saveAndRunStateRelatedJobFilters(job);
-            LOGGER.debug("[id:{}] [recurringJobId:{}] [jobName:{}] processing started", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
+            LOGGER.info("[id:{}] [recurringJobId:{}] [jobName:{}] processing started", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
             return job.hasState(PROCESSING);
         } catch (ConcurrentJobModificationException e) {
             // processing already started on other server

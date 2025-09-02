@@ -6,7 +6,8 @@ import org.jobrunr.storage.sql.common.db.Dialect;
 import org.jobrunr.storage.sql.common.db.Sql;
 import org.jobrunr.storage.sql.common.db.SqlResultSet;
 import java.util.stream.Collectors;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -19,7 +20,7 @@ import static org.jobrunr.storage.StorageProviderUtils.RecurringJobs.*;
 public class RecurringJobTable extends Sql<RecurringJob> {
 
     private final JobMapper jobMapper;
-    private static final Logger LOGGER = Logger.getLogger(RecurringJobTable.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(RecurringJobTable.class);
 
     public RecurringJobTable(Connection connection, Dialect dialect, String tablePrefix, JobMapper jobMapper) {
         this.jobMapper = jobMapper;

@@ -306,7 +306,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
 
     private void startStewardAndServerZooKeeper() {
         // Increasing this
-        zookeeperThreadPool = new PlatformThreadPoolJobRunrExecutor(5, 5, "backgroundjob-zookeeper-pool");
+        zookeeperThreadPool = new PlatformThreadPoolJobRunrExecutor(8, 8, "backgroundjob-zookeeper-pool");
         // why fixedDelay: in case of long stop-the-world garbage collections, the zookeeper tasks will queue up
         // and all will be launched one after another
         zookeeperThreadPool.scheduleWithFixedDelay(serverZooKeeper, 0, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
@@ -342,30 +342,36 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
     }
 
     private void startJobZooKeepers() {
-        LOGGER.info("[DEBUG]: Starting JobZooKeepers...");
+        LOGGER.info("[ZOOKEEPER]: Starting JobZooKeepers...");
         long delay = min(configuration.getPollInterval().toMillis() / 5, 1000);
-        LOGGER.info("[DEBUG]: Delay calculated: {}ms", delay);
+        LOGGER.info("[ZOOKEEPER]: Delay calculated: {}ms", delay);
         
         // Taking care of processing and scheduling jobs
-        LOGGER.info("[DEBUG]: Creating ProcessRecurringJobsTask...");
+        LOGGER.info("[ZOOKEEPER]: Creating ProcessRecurringJobsTask...");
         ProcessRecurringJobsTask processRecurringJobsTask = new ProcessRecurringJobsTask(this);
-        LOGGER.info("[DEBUG]: ProcessRecurringJobsTask created successfully");
+        LOGGER.info("[ZOOKEEPER]: ProcessRecurringJobsTask created successfully");
         
-        LOGGER.info("[DEBUG]: Creating ProcessScheduledJobsTask...");
+        LOGGER.info("[ZOOKEEPER]: Creating ProcessScheduledJobsTask...");
         ProcessScheduledJobsTask processScheduledJobsTask = new ProcessScheduledJobsTask(this);
-        LOGGER.info("[DEBUG]: ProcessScheduledJobsTask created successfully");
+        LOGGER.info("[ZOOKEEPER]: ProcessScheduledJobsTask created successfully");
         
-        LOGGER.info("[DEBUG]: Creating JobZooKeepers...");
-        JobZooKeeper recurringAndScheduledJobsZooKeeper = new JobZooKeeper(this, processRecurringJobsTask, processScheduledJobsTask);
+        LOGGER.info("[ZOOKEEPER]: Creating JobZooKeepers...");
+        /*
+         * Broke recurring and scheduled jobs into seperate tasks, as we can execute them to completely 
+         * seperate of each other.
+         */
+        JobZooKeeper recurringJobsZooKeeper = new JobZooKeeper(this, processRecurringJobsTask);
+        JobZooKeeper scheduledJobsZooKeeper = new JobZooKeeper(this, processScheduledJobsTask);
         JobZooKeeper orphanedJobsZooKeeper = new JobZooKeeper(this, new ProcessOrphanedJobsTask(this));
         JobZooKeeper janitorZooKeeper = new JobZooKeeper(this, new DeleteSucceededJobsTask(this), new DeleteDeletedJobsPermanentlyTask(this));
-        LOGGER.info("[DEBUG]: JobZooKeepers created successfully");
+        LOGGER.info("[ZOOKEEPER]: JobZooKeepers created successfully");
         
-        LOGGER.info("[DEBUG]: Scheduling JobZooKeepers...");
-        zookeeperThreadPool.scheduleWithFixedDelay(recurringAndScheduledJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
+        LOGGER.info("[ZOOKEEPER]: Scheduling JobZooKeepers...");
+        zookeeperThreadPool.scheduleWithFixedDelay(recurringJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
+        zookeeperThreadPool.scheduleWithFixedDelay(scheduledJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(orphanedJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(janitorZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
-        LOGGER.info("[DEBUG]: JobZooKeepers scheduled successfully");
+        LOGGER.info("[ZOOKEEPER]: JobZooKeepers scheduled successfully");
     }
 
     private void stopZooKeepers() {
