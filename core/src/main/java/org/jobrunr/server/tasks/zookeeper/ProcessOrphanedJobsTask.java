@@ -19,7 +19,12 @@ public class ProcessOrphanedJobsTask extends AbstractJobZooKeeperTask {
     public ProcessOrphanedJobsTask(BackgroundJobServer backgroundJobServer) {
         super(backgroundJobServer);
         this.pageRequestSize = backgroundJobServer.getConfiguration().getOrphanedJobsRequestSize();
+        // this.serverTimeoutDuration = backgroundJobServer.getConfiguration().getPollInterval().multipliedBy(backgroundJobServer.getConfiguration().getServerTimeoutPollIntervalMultiplicand());
+        /*
+         * Updating this to handle long running jobs
+         */
         this.serverTimeoutDuration = backgroundJobServer.getConfiguration().getPollInterval().multipliedBy(backgroundJobServer.getConfiguration().getServerTimeoutPollIntervalMultiplicand());
+
     }
 
     @Override

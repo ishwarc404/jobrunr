@@ -5,7 +5,8 @@ import org.jobrunr.server.BackgroundJobServer;
 
 public class UpdateJobsInProgressTask extends AbstractJobStewardTask {
 
-    public UpdateJobsInProgressTask(BackgroundJobServer backgroundJobServer) {
+    public 
+    UpdateJobsInProgressTask(BackgroundJobServer backgroundJobServer) {
         super(backgroundJobServer);
     }
 
