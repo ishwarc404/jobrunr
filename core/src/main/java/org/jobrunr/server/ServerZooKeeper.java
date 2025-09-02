@@ -121,7 +121,7 @@ public class ServerZooKeeper implements Runnable {
             this.masterId = longestRunningBackgroundJobServerId;
             if (masterId.equals(backgroundJobServer.getId())) {
                 backgroundJobServer.setIsMaster(true);
-                LOGGER.info("[ MASTER 👑] - Server {} is master (this BackgroundJobServer)", masterId);
+                LOGGER.info("[MASTER 👑] - Server {} is master (this BackgroundJobServer)", masterId);
             } else {
                 backgroundJobServer.setIsMaster(false);
                 LOGGER.info("Server {} is master (another BackgroundJobServer)", masterId);
