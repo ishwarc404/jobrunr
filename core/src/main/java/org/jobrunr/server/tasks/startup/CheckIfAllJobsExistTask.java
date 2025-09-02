@@ -27,6 +27,7 @@ public class CheckIfAllJobsExistTask implements Runnable {
 
     @Override
     public void run() {
+        LOGGER.info("RUNNING: CheckIfAllJobsExistTask");
         try {
             final Set<String> distinctRecurringJobSignatures = getDistinctRecurringJobSignaturesThatDoNotExistAnymore();
             final Set<String> distinctScheduledJobSignatures = getDistinctScheduledJobSignaturesThatDoNotExistAnymore();

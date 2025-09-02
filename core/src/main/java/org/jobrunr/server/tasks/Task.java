@@ -22,7 +22,7 @@ import static java.util.stream.Collectors.toList;
 
 public abstract class Task {
 
-    protected final Logger LOGGER;
+    protected final org.slf4j.Logger LOGGER;
 
     protected final BackgroundJobServer backgroundJobServer;
     protected final StorageProvider storageProvider;
@@ -44,7 +44,11 @@ public abstract class Task {
     public void run(TaskRunInfo runInfo) {
         try {
             this.runInfo = runInfo;
-            if (pollIntervalInSecondsTimeBoxIsAboutToPass()) return;
+            // We need to make sure we finish PROCESS RECURRING TASKS before poll interval gets over
+            if (pollIntervalInSecondsTimeBoxIsAboutToPass()){
+                LOGGER.info("[ZOOKEEPER][TIMEOUT]: Poll interval in seconds time box is about to pass. Returning.");
+                return;
+            }
             long startTime = System.nanoTime();
             runTask();
             long endTime = System.nanoTime();

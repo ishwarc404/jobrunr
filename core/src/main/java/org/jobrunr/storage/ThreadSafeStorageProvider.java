@@ -180,6 +180,31 @@ public class ThreadSafeStorageProvider implements StorageProvider {
     }
 
     @Override
+    public RecurringJobsResult getRecurringJobsByHours(long hourMask) {
+        return storageProvider.getRecurringJobsByHours(hourMask);
+    }
+
+    @Override
+    public boolean recurringJobsUpdatedByHours(Long recurringJobsUpdatedHash, long hourMask) {
+        return storageProvider.recurringJobsUpdatedByHours(recurringJobsUpdatedHash, hourMask);
+    }
+
+    @Override
+    public Map<Long, Long> getRecurringJobsHashByHours(long hourMask) {
+        return storageProvider.getRecurringJobsHashByHours(hourMask);
+    }
+
+    @Override
+    public List<RecurringJob> getRecurringJobsPageByHours(long windowStart, long windowEnd, long hourMask) {
+        return storageProvider.getRecurringJobsPageByHours(windowStart, windowEnd, hourMask);
+    }
+
+    @Override
+    public Map<String, Long> recurringJobsExistsByHours(long hourMask, StateName... states) {
+        return storageProvider.recurringJobsExistsByHours(hourMask, states);
+    }
+
+    @Override
     public boolean recurringJobsUpdated(Long recurringJobsUpdatedHash) {
         return storageProvider.recurringJobsUpdated(recurringJobsUpdatedHash);
     }
@@ -250,5 +275,13 @@ public class ThreadSafeStorageProvider implements StorageProvider {
 
     public Instant getJobScheduledAt(UUID id) {
         return storageProvider.getJobScheduledAt(id);
+    }
+
+    public List<RecurringJob> getRecurringJobsBatch(long offset, int limit) {
+        return storageProvider.getRecurringJobsBatch(offset, limit);
+    }
+
+    public long countRecurringJobs() {
+        return storageProvider.countRecurringJobs();
     }
 }

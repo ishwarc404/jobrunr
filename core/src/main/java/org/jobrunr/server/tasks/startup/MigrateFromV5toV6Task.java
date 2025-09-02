@@ -30,6 +30,7 @@ public class MigrateFromV5toV6Task implements Runnable {
 
     @Override
     public void run() {
+        LOGGER.info("RUNNING: MigrateFromV5toV6Task");
         JobRunrMetadata metadata = storageProvider.getMetadata("database_version", "cluster");
         if (metadata != null && "6.0.0".equals(metadata.getValue())) return;
 

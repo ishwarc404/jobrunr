@@ -219,6 +219,16 @@ public interface StorageProvider extends AutoCloseable {
     Map<String, Long> recurringJobsExists(StateName... states);
 
     /**
+     * Returns a map of recurring job IDs and their job counts for jobs matching the hour mask.
+     * Only considers jobs created by recurring jobs that can execute in the specified hours.
+     *
+     * @param hourMask BitSet representation of hours (UTC) to filter by
+     * @param states the possible states for the Job (can be empty)
+     * @return map of recurringJobId to count of existing jobs matching both hour mask and states
+     */
+    Map<String, Long> recurringJobsExistsByHours(long hourMask, StateName... states);
+
+    /**
      * Saves a {@link RecurringJob} to the database. If a {@link RecurringJob} with the same id exists, it will be overwritten
      *
      * @param recurringJob the RecurringJob to save
@@ -232,6 +242,61 @@ public interface StorageProvider extends AutoCloseable {
      * @return a list {@link RecurringJob RecurringJobs}.
      */
     RecurringJobsResult getRecurringJobs();
+
+    /**
+     * Returns recurring jobs that can execute in the specified hours (BitSet mask).
+     * Used for hour-based filtering optimization.
+     *
+     * @param hourMask BitSet representation of hours (UTC) to filter by
+     * @return filtered recurring jobs matching the hour mask
+     */
+    RecurringJobsResult getRecurringJobsByHours(long hourMask);
+
+    /**
+     * Checks if recurring jobs matching the hour mask have been updated since the given hash.
+     * Only considers jobs that can execute in the specified hours.
+     *
+     * @param recurringJobsUpdatedHash the hash to compare against
+     * @param hourMask BitSet representation of hours (UTC) to filter by
+     * @return true if jobs matching the hour mask have been updated
+     */
+    boolean recurringJobsUpdatedByHours(Long recurringJobsUpdatedHash, long hourMask);
+
+    /**
+     * Returns hash windows for recurring jobs matching the specified hours.
+     * Only includes jobs that can execute in the specified hours.
+     *
+     * @param hourMask BitSet representation of hours (UTC) to filter by
+     * @return map of window start times to hashes for hour-filtered jobs
+     */
+    Map<Long, Long> getRecurringJobsHashByHours(long hourMask);
+
+    /**
+     * Returns recurring jobs in a time window that also match the specified hours.
+     * Combines time-based and hour-based filtering.
+     *
+     * @param windowStart start of time window (epoch milliseconds)
+     * @param windowEnd end of time window (epoch milliseconds)  
+     * @param hourMask BitSet representation of hours (UTC) to filter by
+     * @return list of jobs matching both time window and hour mask
+     */
+    List<RecurringJob> getRecurringJobsPageByHours(long windowStart, long windowEnd, long hourMask);
+
+    /**
+     * Returns the total count of recurring jobs in the storage.
+     *
+     * @return the total number of recurring jobs
+     */
+    long countRecurringJobs();
+
+    /**
+     * Returns a batch of recurring jobs with pagination support.
+     *
+     * @param offset the starting position (0-based)
+     * @param limit the maximum number of jobs to return
+     * @return a list of recurring jobs for the specified page
+     */
+    List<RecurringJob> getRecurringJobsBatch(long offset, int limit);
 
     boolean recurringJobsUpdated(Long recurringJobsUpdatedHash);
 

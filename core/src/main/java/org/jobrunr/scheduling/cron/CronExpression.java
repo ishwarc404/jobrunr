@@ -373,6 +373,15 @@ public class CronExpression extends Schedule {
         return updatedDays;
     }
 
+    /**
+     * Returns the hours BitSet for this cron expression.
+     * Used for hour-based filtering optimization.
+     * @return BitSet representing which hours this job can execute
+     */
+    public BitSet getHours() {
+        return (BitSet) hours.clone(); // Return a copy to prevent external modification
+    }
+
     @Override
     public String toString() {
         return expression;

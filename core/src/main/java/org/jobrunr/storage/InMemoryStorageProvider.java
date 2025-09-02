@@ -269,6 +269,31 @@ public class InMemoryStorageProvider extends AbstractStorageProvider {
     }
 
     @Override
+    public RecurringJobsResult getRecurringJobsByHours(long hourMask) {
+        return null; // Not implemented for InMemoryStorageProvider
+    }
+
+    @Override
+    public boolean recurringJobsUpdatedByHours(Long recurringJobsUpdatedHash, long hourMask) {
+        return false; // Not implemented for InMemoryStorageProvider
+    }
+
+    @Override
+    public Map<Long, Long> getRecurringJobsHashByHours(long hourMask) {
+        return null; // Not implemented for InMemoryStorageProvider
+    }
+
+    @Override
+    public List<RecurringJob> getRecurringJobsPageByHours(long windowStart, long windowEnd, long hourMask) {
+        return null; // Not implemented for InMemoryStorageProvider
+    }
+
+    @Override
+    public Map<String, Long> recurringJobsExistsByHours(long hourMask, StateName... states) {
+        return null; // Not implemented for InMemoryStorageProvider
+    }
+
+    @Override
     public boolean recurringJobsUpdated(Long recurringJobsUpdatedHash) {
         Long currentResult = recurringJobs.stream().map(rj -> rj.getCreatedAt().toEpochMilli()).reduce(Long::sum).orElse(0L);
         return !currentResult.equals(recurringJobsUpdatedHash);
@@ -370,5 +395,13 @@ public class InMemoryStorageProvider extends AbstractStorageProvider {
 
     public Instant getJobScheduledAt(UUID id) {
         return null;
+    }
+
+    public List<RecurringJob> getRecurringJobsBatch(long offset, int limit) {
+        return null;
+    }
+
+    public long countRecurringJobs() {
+        return 0L;
     }
 }

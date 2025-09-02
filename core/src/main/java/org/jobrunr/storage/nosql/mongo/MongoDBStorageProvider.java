@@ -576,4 +576,37 @@ public class MongoDBStorageProvider extends AbstractStorageProvider implements N
     public Instant getJobScheduledAt(UUID id) {
         return null;
     }
+
+    public List<RecurringJob> getRecurringJobsBatch(long offset, int limit) {
+        return null;
+    }
+
+    public long countRecurringJobs() {
+        return 0L;
+    }
+
+    public RecurringJobsResult getRecurringJobsByHours(long hourMask) {
+        return null; // Not implemented for MongoDBStorageProvider
+    }
+
+    @Override
+    public boolean recurringJobsUpdatedByHours(Long recurringJobsUpdatedHash, long hourMask) {
+        return false; // Not implemented for MongoDBStorageProvider
+    }
+
+    @Override
+    public Map<Long, Long> getRecurringJobsHashByHours(long hourMask) {
+        return null; // Not implemented for MongoDBStorageProvider
+    }
+
+    @Override
+    public List<RecurringJob> getRecurringJobsPageByHours(long windowStart, long windowEnd, long hourMask) {
+        return null; // Not implemented for MongoDBStorageProvider
+    }
+
+    @Override
+    public Map<String, Long> recurringJobsExistsByHours(long hourMask, StateName... states) {
+        return null; // Not implemented for MongoDBStorageProvider
+    }
+
 }

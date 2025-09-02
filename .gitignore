@@ -11,7 +11,7 @@ out/
 
 # Ignore all of .idea folder by default
 .idea/*
-
+.claude/*
 # Allow some project-specific settings
 !.idea/codeStyles/
 !.idea/deployment.xml

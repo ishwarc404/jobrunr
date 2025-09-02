@@ -78,7 +78,7 @@ public class BackgroundJobPerformer implements Runnable {
 
             job.startProcessingOn(backgroundJobServer);
             saveAndRunStateRelatedJobFilters(job);
-            LOGGER.debug("[id:{}] [recurringJobId:{}] [jobName:{}] processing started", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
+            LOGGER.info("[id:{}] [recurringJobId:{}] [jobName:{}] processing started", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
             return job.hasState(PROCESSING);
         } catch (ConcurrentJobModificationException e) {
             // processing already started on other server
@@ -138,7 +138,7 @@ public class BackgroundJobPerformer implements Runnable {
                 throw ex;
             }
         } catch (Exception badException) {
-            LOGGER.error("[id:{}] [recurringJobId:{}] [jobName:{}] ERROR - could not update job to FAILED state", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName(), badException);
+            LOGGER.error("[id:{}] [recurringJobId:{}] [jobName:{}]   - could not update job to FAILED state", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName(), badException);
         }
     }
 
