@@ -298,10 +298,9 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     public List<Job> getScheduledJobs(Instant scheduledBefore, AmountRequest amountRequest) {
         try (final Connection conn = dataSource.getConnection()) {
             long start = System.currentTimeMillis();
-            LOGGER.info("[SCHEDULED JOBS]: Fetching jobs to schedule..");
             final List<Job> savedJobs = jobTable(conn).selectJobsScheduledBefore(scheduledBefore, amountRequest);
             long duration = System.currentTimeMillis() - start;
-            LOGGER.info("[SCHEDULED JOBS]: Fetched " + savedJobs.size() + " jobs in: " + duration + "ms");
+            LOGGER.info("[FETCHED SCHEDULED JOBS]: Fetched " + savedJobs.size() + " jobs in: " + duration + "ms");
             return savedJobs;
         } catch (SQLException e) {
             throw new StorageException(e);

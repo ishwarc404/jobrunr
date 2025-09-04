@@ -2,6 +2,8 @@ package org.jobrunr.jobs;
 
 import org.jobrunr.jobs.context.JobDashboardLogger;
 import org.jobrunr.jobs.context.JobDashboardProgressBar;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.jobrunr.jobs.states.DeletedState;
 import org.jobrunr.jobs.states.EnqueuedState;
 import org.jobrunr.jobs.states.FailedState;
@@ -53,6 +55,7 @@ import static org.jobrunr.utils.reflection.ReflectionUtils.cast;
  */
 public class Job extends AbstractJob {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(Job.class);
     private static final Pattern METADATA_PATTERN = Pattern.compile("(\\b" + JobDashboardLogger.JOBRUNR_LOG_KEY + "\\b|\\b" + JobDashboardProgressBar.JOBRUNR_PROGRESSBAR_KEY + "\\b)-(\\d+)");
     public static Map<String, Function<Job, Comparable>> ALLOWED_SORT_COLUMNS = new HashMap<>();
 
@@ -181,6 +184,8 @@ public class Job extends AbstractJob {
     public void startProcessingOn(BackgroundJobServer backgroundJobServer) {
         if (getState() == StateName.PROCESSING) throw new ConcurrentJobModificationException(this);
         addJobState(new ProcessingState(backgroundJobServer));
+        LOGGER.info("[JOB PROCESSING STATE]: Job transitioned to PROCESSING. Job ID: [{}] [recurringJobId:{}] [jobName:{}] [serverId:{}]", 
+                   getId(), getRecurringJobId().orElse(null), getJobName(), backgroundJobServer.getId());
     }
 
     public Job updateProcessing() {
@@ -203,6 +208,7 @@ public class Job extends AbstractJob {
     }
 
     public Job failed(String message, Exception exception) {
+        LOGGER.info("[JOB FAILED]: [id:{}] [recurringJobId:{}] [jobName:{}] failed with message: {}", getId(), getRecurringJobId().orElse(null), getJobName(), message);
         addJobState(new FailedState(message, exception));
         return this;
     }

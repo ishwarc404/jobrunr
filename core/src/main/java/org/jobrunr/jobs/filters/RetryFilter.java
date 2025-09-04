@@ -24,6 +24,9 @@ import static org.jobrunr.jobs.states.StateName.FAILED_STATES;
  */
 public class RetryFilter implements ElectStateFilter {
 
+    /*
+     * Retry policy
+     */
     public static final int DEFAULT_BACKOFF_POLICY_TIME_SEED = 3;
     public static final int DEFAULT_NBR_OF_RETRIES = 10;
 

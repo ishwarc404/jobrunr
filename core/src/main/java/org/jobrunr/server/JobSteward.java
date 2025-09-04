@@ -3,6 +3,8 @@ package org.jobrunr.server;
 import org.jobrunr.jobs.Job;
 import org.jobrunr.server.tasks.steward.OnboardNewWorkTask;
 import org.jobrunr.server.tasks.steward.UpdateJobsInProgressTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class JobSteward extends JobHandler implements Runnable {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(JobSteward.class);
+    
     private final Map<Job, Thread> jobsCurrentlyInProgress;
     private final AtomicInteger occupiedWorkers;
     private final OnboardNewWorkTask onboardNewWorkTask;
@@ -35,10 +39,14 @@ public class JobSteward extends JobHandler implements Runnable {
                 .map(jobsCurrentlyInProgress::get)
                 .ifPresent(Thread::interrupt);
         jobsCurrentlyInProgress.put(job, thread);
+        // LOGGER.info("[JOB STEWARD]: Added job to tracking. Job ID: [{}] [recurringJobId:{}] [jobName:{}]", 
+        //            job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
     }
 
     public void stopProcessing(Job job) {
         jobsCurrentlyInProgress.remove(job);
+        // LOGGER.info("[JOB STEWARD]: Removed job from tracking. Job ID: [{}] [recurringJobId:{}] [jobName:{}]", 
+        //            job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
     }
 
     public Set<Job> getJobsInProgress() {

@@ -1,18 +1,30 @@
 package org.jobrunr.server.tasks.steward;
 
+import java.util.Set;
+
 import org.jobrunr.jobs.Job;
 import org.jobrunr.server.BackgroundJobServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 public class UpdateJobsInProgressTask extends AbstractJobStewardTask {
 
-    public UpdateJobsInProgressTask(BackgroundJobServer backgroundJobServer) {
+    private static final Logger LOGGER = LoggerFactory.getLogger(UpdateJobsInProgressTask.class);
+
+    public 
+    UpdateJobsInProgressTask(BackgroundJobServer backgroundJobServer) {
         super(backgroundJobServer);
     }
 
     @Override
     protected void runTask() {
-        LOGGER.debug("Updating currently processed jobs... ");
-        convertAndProcessJobs(backgroundJobServer.getJobSteward().getJobsInProgress(), this::updateCurrentlyProcessingJob);
+        Set<Job> jobsInProgress = backgroundJobServer.getJobSteward().getJobsInProgress();
+        String jobIds = jobsInProgress.stream()
+                .map(job -> job.getId().toString())
+                .collect(java.util.stream.Collectors.joining(", "));
+        LOGGER.debug("Updating currently processed jobs. Job IDs: [{}]", jobIds);
+        convertAndProcessJobs(jobsInProgress, this::updateCurrentlyProcessingJob);
     }
 
     private Job updateCurrentlyProcessingJob(Job job) {
