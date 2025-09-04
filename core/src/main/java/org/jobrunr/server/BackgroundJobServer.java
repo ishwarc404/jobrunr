@@ -367,7 +367,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         /*
          * Added heartbeat zookeeper here, to update in progress jobs
          */
-        JobZooKeeper inProgressZookeeper = new JobZooKeeper(this, new UpdateJobsInProgressZooKeeperTask(this));
+        // JobZooKeeper inProgressZookeeper = new JobZooKeeper(this, new UpdateJobsInProgressZooKeeperTask(this));
         JobZooKeeper janitorZooKeeper = new JobZooKeeper(this, new DeleteSucceededJobsTask(this), new DeleteDeletedJobsPermanentlyTask(this));
         LOGGER.info("[ZOOKEEPER]: JobZooKeepers created successfully");
         
@@ -375,7 +375,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         zookeeperThreadPool.scheduleWithFixedDelay(recurringJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(scheduledJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(orphanedJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
-        zookeeperThreadPool.scheduleWithFixedDelay(inProgressZookeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
+        // zookeeperThreadPool.scheduleWithFixedDelay(inProgressZookeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(janitorZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         LOGGER.info("[ZOOKEEPER]: JobZooKeepers scheduled successfully");
     }

@@ -75,14 +75,12 @@ public class BackgroundJobPerformer implements Runnable {
     private boolean updateJobStateToProcessingRunJobFiltersAndReturnIfProcessingCanStart() {
         try {
             if (hasProcessingStateProvidedByStorageProvider()) return true;
-
             job.startProcessingOn(backgroundJobServer);
             saveAndRunStateRelatedJobFilters(job);
-            LOGGER.info("[id:{}] [recurringJobId:{}] [jobName:{}] processing started", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
             return job.hasState(PROCESSING);
         } catch (ConcurrentJobModificationException e) {
             // processing already started on other server
-            LOGGER.trace("[id:{}] [recurringJobId:{}] [jobName:{}] could not start processing - it is already in a newer state (collision {})", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName(), concurrentModificationExceptionCounter.incrementAndGet(), e);
+            LOGGER.info("[id:{}] [recurringJobId:{}] [jobName:{}] could not start processing - it is already in a newer state (collision {})", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName(), concurrentModificationExceptionCounter.incrementAndGet(), e);
             return false;
         }
     }
@@ -91,7 +89,7 @@ public class BackgroundJobPerformer implements Runnable {
         try {
             JobRunrDashboardLogger.setJob(job);
             backgroundJobServer.getJobSteward().startProcessing(job, Thread.currentThread());
-            LOGGER.debug("[id:{}] [recurringJobId:{}] [jobName:{}] is running", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
+            LOGGER.info("[id:{}] [recurringJobId:{}] [jobName:{}] processing started", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
             jobPerformingFilters.runOnJobProcessingFilters();
             BackgroundJobRunner backgroundJobRunner = backgroundJobServer.getBackgroundJobRunner(job);
             backgroundJobRunner.run(job);
