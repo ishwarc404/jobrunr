@@ -30,7 +30,7 @@ public class ProcessScheduledJobsTask extends AbstractJobZooKeeperTask {
                 return jobs;
             },
             Job::enqueue,
-            totalAmountOfEnqueuedJobs -> LOGGER.debug("[ENQUE JOBS]: Found {} scheduled jobs to enqueue.", totalAmountOfEnqueuedJobs));
+            totalAmountOfEnqueuedJobs -> LOGGER.debug("[ENQUEUE JOBS]: Found {} scheduled jobs to enqueue.", totalAmountOfEnqueuedJobs));
         long taskEnd = System.currentTimeMillis();
         LOGGER.info("[ENQUEUE JOBS]: Completed task to enqueue scheduled jobs in {}ms", (taskEnd - taskStart));
     }

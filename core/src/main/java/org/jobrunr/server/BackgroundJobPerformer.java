@@ -89,7 +89,7 @@ public class BackgroundJobPerformer implements Runnable {
         try {
             JobRunrDashboardLogger.setJob(job);
             backgroundJobServer.getJobSteward().startProcessing(job, Thread.currentThread());
-            LOGGER.info("[id:{}] [recurringJobId:{}] [jobName:{}] processing started", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
+            LOGGER.info("[JOB PROCESSING] [id:{}] [recurringJobId:{}] [jobName:{}] processing started", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
             jobPerformingFilters.runOnJobProcessingFilters();
             BackgroundJobRunner backgroundJobRunner = backgroundJobServer.getBackgroundJobRunner(job);
             backgroundJobRunner.run(job);
@@ -105,7 +105,7 @@ public class BackgroundJobPerformer implements Runnable {
 
     private void updateJobStateToSucceededAndRunJobFilters() {
         try {
-            LOGGER.info("[id:{}] [recurringJobId:{}] [jobName:{}] processing succeeded", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
+            LOGGER.info("[JOB SUCCEEDED] [id:{}] [recurringJobId:{}] [jobName:{}] processing succeeded", job.getId(), job.getRecurringJobId().orElse(null), job.getJobName());
             job.succeeded();
             saveAndRunStateRelatedJobFilters(job);
         } catch (IllegalJobStateChangeException ex) {

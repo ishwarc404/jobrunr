@@ -174,18 +174,20 @@ public class Job extends AbstractJob {
     }
 
     public void enqueue() {
+        LOGGER.info("[JOB ENQUEUED]: [id:{}] [recurringJobId:{}] [jobName:{}] - Job moved from {} to ENQUEUED",
+                   getId(), getRecurringJobId().orElse(null), getJobName(), getState());
         addJobState(new EnqueuedState());
     }
 
     public void scheduleAt(Instant instant, String reason) {
+        LOGGER.info("[JOB SCHEDULED]: [id:{}] [recurringJobId:{}] [jobName:{}] - Scheduled at {} for reason: {}",
+                   getId(), getRecurringJobId().orElse(null), getJobName(), instant, reason);
         addJobState(new ScheduledState(instant, reason));
     }
 
     public void startProcessingOn(BackgroundJobServer backgroundJobServer) {
         if (getState() == StateName.PROCESSING) throw new ConcurrentJobModificationException(this);
         addJobState(new ProcessingState(backgroundJobServer));
-        LOGGER.info("[JOB PROCESSING STATE]: Job transitioned to PROCESSING. Job ID: [{}] [recurringJobId:{}] [jobName:{}] [serverId:{}]", 
-                   getId(), getRecurringJobId().orElse(null), getJobName(), backgroundJobServer.getId());
     }
 
     public Job updateProcessing() {

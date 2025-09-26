@@ -33,12 +33,29 @@ public class OnboardNewWorkTask extends AbstractJobStewardTask {
     protected void runTask() {
         if (backgroundJobServer.isRunning() && reentrantLock.tryLock()) {
             try {
-                LOGGER.trace("Looking for enqueued jobs... ");
                 final AmountRequest workPageRequest = workDistributionStrategy.getWorkPageRequest();
                 if (workPageRequest.getLimit() > 0) {
+                    // Get worker capacity info
+                    int occupiedWorkers = backgroundJobServer.getJobSteward().getOccupiedWorkerCount();
+                    int totalWorkers = backgroundJobServer.getConfiguration().getWorkerPoolSize();
+                    int availableWorkers = totalWorkers - occupiedWorkers;
+
                     final List<Job> enqueuedJobs = storageProvider.getJobsToProcess(backgroundJobServer, workPageRequest);
+
+                    if (!enqueuedJobs.isEmpty()) {
+                        LOGGER.info("[ONBOARD JOBS] [DISPATCH QUEUE]: Fetched {} jobs | Workers: {}/{} busy | {} available | Requested: {}",
+                                   enqueuedJobs.size(),
+                                   occupiedWorkers, totalWorkers,
+                                   availableWorkers,
+                                   workPageRequest.getLimit());
+
+                        if (availableWorkers == 0) {
+                            LOGGER.warn("[ONBOARD JOBS] [DISPATCH QUEUE]: WORKER OVERLOAD - All {} workers are busy, {} jobs waiting",
+                                       totalWorkers, enqueuedJobs.size());
+                        }
+                    }
+
                     enqueuedJobs.forEach(backgroundJobServer::processJob);
-                    LOGGER.debug("Found {} enqueued jobs to process.", enqueuedJobs.size());
                 }
             } finally {
                 reentrantLock.unlock();
