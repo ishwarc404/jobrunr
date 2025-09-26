@@ -42,8 +42,15 @@ public class ProcessOrphanedJobsTask extends AbstractJobZooKeeperTask {
     }
 
     private void changeJobStateToFailedAndRunJobFilter(Job job) {
+        LOGGER.warn("[ORPHAN JOB DETECTED]: [id:{}] [recurringJobId:{}] [jobName:{}] [lastUpdated:{}] - Job was too long in PROCESSING state without being updated (timeout: {})",
+                job.getId(),
+                job.getRecurringJobId().orElse(null),
+                job.getJobName(),
+                job.getUpdatedAt(),
+                serverTimeoutDuration);
+
         IllegalThreadStateException e = new IllegalThreadStateException("Job was too long in PROCESSING state without being updated.");
         jobFilterUtils.runOnJobProcessingFailedFilters(job, e);
-        job.failed("Orphaned job", e);
+        job.failed("Orphaned job", null);
     }
 }

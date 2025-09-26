@@ -4,6 +4,8 @@ import org.jobrunr.jobs.Job;
 import org.jobrunr.jobs.states.FailedState;
 import org.jobrunr.jobs.states.JobState;
 import org.jobrunr.scheduling.exceptions.JobNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static java.time.Instant.now;
 import static org.jobrunr.jobs.states.StateName.FAILED_STATES;
@@ -23,6 +25,8 @@ import static org.jobrunr.jobs.states.StateName.FAILED_STATES;
  * </pre>
  */
 public class RetryFilter implements ElectStateFilter {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(RetryFilter.class);
 
     /*
      * Retry policy
@@ -48,10 +52,33 @@ public class RetryFilter implements ElectStateFilter {
 
     @Override
     public void onStateElection(Job job, JobState newState) {
-        if (isNotFailed(newState) || isJobNotFoundException(newState) || isProblematicExceptionAndMustNotRetry(newState) || maxAmountOfRetriesReached(job))
+        if (isNotFailed(newState) || isJobNotFoundException(newState) || isProblematicExceptionAndMustNotRetry(newState)) {
+            LOGGER.info("[JOB RETRY]: Will not retry as either job might not be failed, or job is not found, or problematic exception.");
             return;
+        }
 
-        job.scheduleAt(now().plusSeconds(getSecondsToAdd(job)), String.format("Retry %d of %d", getFailureCount(job), getMaxNumberOfRetries(job)));
+        if (maxAmountOfRetriesReached(job)) {
+            LOGGER.info("[JOB FAILED PERMANENTLY] [JOB RETRY] [id:{}] [recurringJobId:{}] [jobName:{}] - Job has exhausted all {} retries and will not be retried",
+                    job.getId(),
+                    job.getRecurringJobId().orElse(null),
+                    job.getJobName(),
+                    getMaxNumberOfRetries(job));
+            return;
+        }
+
+        long retryNumber = getFailureCount(job);
+        int maxRetries = getMaxNumberOfRetries(job);
+        long secondsToAdd = getSecondsToAdd(job);
+
+        LOGGER.info("[JOB RETRY] [id:{}] [recurringJobId:{}] [jobName:{}] - Scheduling retry for job. Retry {} of {} - Will retry in {} seconds",
+                job.getId(),
+                job.getRecurringJobId().orElse(null),
+                job.getJobName(),
+                retryNumber,
+                maxRetries,
+                secondsToAdd);
+
+        job.scheduleAt(now().plusSeconds(secondsToAdd), String.format("Retry %d of %d", retryNumber, maxRetries));
     }
 
     protected long getSecondsToAdd(Job job) {
