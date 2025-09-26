@@ -37,7 +37,7 @@ public class OnboardNewWorkTask extends AbstractJobStewardTask {
                 if (workPageRequest.getLimit() > 0) {
                     // Get worker capacity info
                     int occupiedWorkers = backgroundJobServer.getJobSteward().getOccupiedWorkerCount();
-                    int totalWorkers = backgroundJobServer.getConfiguration().getWorkerPoolSize();
+                    int totalWorkers = workDistributionStrategy.getWorkerCount();
                     int availableWorkers = totalWorkers - occupiedWorkers;
 
                     final List<Job> enqueuedJobs = storageProvider.getJobsToProcess(backgroundJobServer, workPageRequest);
