@@ -215,7 +215,7 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
                 long start = System.currentTimeMillis();
                 final List<Job> savedJobs = jobTable(conn).save(jobs);
                 long duration = System.currentTimeMillis() - start;
-                LOGGER.info("Inserted: " + jobs.size() + " jobs in: " + duration + "ms");
+                LOGGER.debug("Inserted: " + jobs.size() + " jobs in: " + duration + "ms");
                 transaction.commit();
                 notifyJobStatsOnChangeListenersIf(!jobs.isEmpty());
                 return savedJobs;
@@ -405,7 +405,7 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     public Map<String, Long> recurringJobsExistsByHours(long hourMask, StateName... states) {
 
         long start = System.currentTimeMillis();
-        LOGGER.info("[RECURRING JOBS]: Fetching existance report..");
+        LOGGER.debug("[RECURRING JOBS]: Fetching existance report..");
 
         String sql =
             "SELECT j.recurringJobId, COUNT(*) AS jobCount " +

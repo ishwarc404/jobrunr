@@ -6,7 +6,7 @@ import org.jobrunr.server.BackgroundJobServer;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-
+import java.util.Optional;
 import static java.util.Collections.emptyList;
 import static org.jobrunr.jobs.states.StateName.PROCESSING;
 import static org.jobrunr.storage.Paging.AmountBasedList.ascOnUpdatedAt;
@@ -23,13 +23,24 @@ public class ProcessOrphanedJobsTask extends AbstractJobZooKeeperTask {
         /*
          * Updating this to handle long running jobs
          */
-        this.serverTimeoutDuration = Duration.ofMinutes(10);
-
+        
+        this.serverTimeoutDuration = Duration.ofMinutes(
+            Optional.ofNullable(System.getenv("JOBRUNR_ORPHAN_TIMEOUT"))
+                .map(timeout -> {
+                    try {
+                        int minutes = Integer.parseInt(timeout);
+                        return Math.max(1, Math.min(minutes, 1440)); // Clamp between 1-1440 minutes (1 day)
+                    } catch (NumberFormatException e) {
+                        return 20;
+                    }
+                })
+                .orElse(20)
+        );
     }
 
     @Override
     protected void runTask() {
-        LOGGER.info("Looking for orphan jobs... ");
+        LOGGER.debug("[ORPHAN JOB]: Looking for orphan jobs... ");
         final Instant updatedBefore = runStartTime().minus(serverTimeoutDuration);
         processManyJobs(previousResults -> getOrphanedJobs(updatedBefore, previousResults),
                 this::changeJobStateToFailedAndRunJobFilter,
@@ -51,6 +62,10 @@ public class ProcessOrphanedJobsTask extends AbstractJobZooKeeperTask {
 
         IllegalThreadStateException e = new IllegalThreadStateException("Job was too long in PROCESSING state without being updated.");
         jobFilterUtils.runOnJobProcessingFailedFilters(job, e);
-        job.failed("Orphaned job", null);
+
+        // Create a lightweight exception without stack trace for storage
+        IllegalThreadStateException lightweightException = new IllegalThreadStateException("Job was too long in PROCESSING state without being updated.");
+        lightweightException.setStackTrace(new StackTraceElement[0]); // Empty stack trace to save DB space
+        job.failed("Orphaned job", lightweightException);
     }
 }
