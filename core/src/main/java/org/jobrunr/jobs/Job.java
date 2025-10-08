@@ -174,14 +174,10 @@ public class Job extends AbstractJob {
     }
 
     public void enqueue() {
-        LOGGER.info("[JOB ENQUEUED]: [id:{}] [recurringJobId:{}] [jobName:{}] - Job moved from {} to ENQUEUED",
-                   getId(), getRecurringJobId().orElse(null), getJobName(), getState());
         addJobState(new EnqueuedState());
     }
 
     public void scheduleAt(Instant instant, String reason) {
-        LOGGER.info("[JOB SCHEDULED]: [id:{}] [recurringJobId:{}] [jobName:{}] - Scheduled at {} for reason: {}",
-                   getId(), getRecurringJobId().orElse(null), getJobName(), instant, reason);
         addJobState(new ScheduledState(instant, reason));
     }
 
@@ -210,7 +206,7 @@ public class Job extends AbstractJob {
     }
 
     public Job failed(String message, Exception exception) {
-        LOGGER.info("[JOB FAILED]: [id:{}] [recurringJobId:{}] [jobName:{}] failed with message: {}", getId(), getRecurringJobId().orElse(null), getJobName(), message);
+        LOGGER.debug("[JOB FAILED]: [id:{}] [recurringJobId:{}] [jobName:{}] failed with message: {}", getId(), getRecurringJobId().orElse(null), getJobName(), message);
         addJobState(new FailedState(message, exception));
         return this;
     }

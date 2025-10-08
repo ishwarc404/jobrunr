@@ -53,7 +53,7 @@ public class RetryFilter implements ElectStateFilter {
     @Override
     public void onStateElection(Job job, JobState newState) {
         if (isNotFailed(newState) || isJobNotFoundException(newState) || isProblematicExceptionAndMustNotRetry(newState)) {
-            LOGGER.info("[JOB RETRY]: Will not retry as either job might not be failed, or job is not found, or problematic exception.");
+            // LOGGER.info("[JOB RETRY]: Will not retry as either job might not be failed, or job is not found, or problematic exception.");
             return;
         }
 
