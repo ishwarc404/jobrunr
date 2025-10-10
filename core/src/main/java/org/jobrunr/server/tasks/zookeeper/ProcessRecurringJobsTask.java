@@ -14,7 +14,9 @@ import org.slf4j.Logger;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.Month;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 
@@ -51,6 +53,8 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         long taskStart = System.currentTimeMillis();
         LOGGER.info("[SCHEDULE JOBS]: Starting task to schedule recurring jobs.");        
         Instant initialRunStartTime = runStartTime();
+        Instant from = initialRunStartTime;        
+        Instant upUntil = runStartTime().plus(backgroundJobServerConfiguration().getPollInterval());
 
         // Check if the current instance is the master instance
         if (!this.amIMaster) {
@@ -64,22 +68,42 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
             initialRunStartTime = oneMinuteAgo.isAfter(lastSuccess) ? oneMinuteAgo : lastSuccess;
             LOGGER.info("[SCHEDULE JOBS][FLUXCAPACITOR]: Time travelling to: " + initialRunStartTime);
             this.amIMaster = true; // set this instance as the master instance only in the context of ProcessRecurringJobsTask
+        } 
+        else {
+            /*
+            * We need to go back in time, at the start of every hour too, to prevent missing of jobs
+            * This happens when poll happened at 7:59:59 and next poll was 8:00:30
+            * We miss running all 8AM jobs
+            * This regression behaviour was the result of the hourMask logic.
+            * Another way to solve this problem is to fetch all 8AM jobs at 7:58 or so -- but it causes further regression. 
+            */
+            Integer currentHourForTimetravel = Instant.now().atZone(ZoneOffset.UTC).getHour();
+            boolean needsRefreshForTimetravel = fetchedHour == null || !currentHourForTimetravel.equals(fetchedHour);
+            if(needsRefreshForTimetravel){
+                //Go back in time to the top of the hour and go back 5 more seocods.
+                from = Instant.now().atZone(ZoneOffset.UTC)
+                    .withMinute(0)
+                    .withSecond(0)
+                    .withNano(0)
+                    .minusSeconds(5)  // Go back 5 more seconds to be safe. 
+                    .toInstant();
+                LOGGER.info("[SCHEDULE JOBS][HOUR CHANGE]: Hour changed to {}, adjusting the FROM time to: {}",
+                  currentHourForTimetravel, from);
+            }
         }
 
-        Instant from = initialRunStartTime;        
-        Instant upUntil = runStartTime().plus(backgroundJobServerConfiguration().getPollInterval());
-
         List<RecurringJob> recurringJobs = getRecurringJobs(); //Main function to fetch the recurring jobs
-        
-        // Calculate current hour mask for consistent filtering  
+
+        // Calculate current hour mask for consistent filtering
         int currentHour = Instant.now().atZone(ZoneOffset.UTC).getHour();
-        long hourMask = (1L << currentHour);
-        
+        long hourMask = calculateHourMask(currentHour);
+
         //This code fetches the existing jobs in the database which are already scheduled, enqueued or processing
         existingJobsById = fetchExistingCountsByHours(hourMask); //optimized for hour-based filtering
 
+        final Instant finalFrom = from;                                                                                                                                            
         convertAndProcessManyJobs(recurringJobs,
-                recurringJob -> toScheduledJobs(recurringJob, from, upUntil),
+                recurringJob -> toScheduledJobs(recurringJob, finalFrom, upUntil),
                 totalAmountOfJobs -> LOGGER.debug("[SCHEDULE JOBS]: Found {} jobs to schedule from {} recurring jobs", totalAmountOfJobs, recurringJobs.size()));
         
         long taskEnd = System.currentTimeMillis();
@@ -94,26 +118,48 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
                 .orElse(0L);
     }
 
+    /**
+     * Calculates the hour mask for fetching recurring jobs.
+     * Always fetches current hour AND previous hour to ensure we never miss jobs.
+     * This handles:
+     * - DST transitions (jobs shifting UTC hours due to timezone offset changes)
+     * - Hour boundary edge cases (poll at 7:59:59, next at 8:00:30)
+     * - Jobs scheduled in different timezones
+     * Deduplication via toScheduleJobs() and recurringJobRuns prevents double-scheduling.
+     *
+     * @param currentHour The current UTC hour (0-23)
+     * @return Bitmask with the current hour and previous hour
+     */
+    private long calculateHourMask(int currentHour) {
+        // Always fetch current hour AND previous hour
+        int previousHour = (currentHour - 1 + 24) % 24;
+        long mask = (1L << currentHour) | (1L << previousHour);
+
+        LOGGER.debug("[SCHEDULE JOBS][HOUR MASK]: Fetching jobs for hours {} and {} (mask={})",
+                    previousHour, currentHour, mask);
+        return mask;
+    }
+
     private List<RecurringJob> getRecurringJobs() {
         // Calculate current UTC hour
         currentHour = Instant.now().atZone(ZoneOffset.UTC).getHour();
         
         // Check if this is bootup/crash (fetchedHour is null) or hour changed
         boolean needsRefresh = fetchedHour == null || !currentHour.equals(fetchedHour);
-        
+
         if (recurringJobs == null || recurringJobs.isEmpty() || needsRefresh) {
             if (fetchedHour == null) {
                 LOGGER.info("[SCHEDULE JOBS][BOOTUP]: Boot up time, fetching recurring jobs for UTC hour filtering.");
             } else {
                 LOGGER.info("[SCHEDULE JOBS][BOOTUP][HOUR CHANGE]: UTC hour changed from {} to {}, refreshing job cache", fetchedHour, currentHour);
             }
-            
-        
-            // Create hour bitmask for current hour
-            long hourMask = (1L << currentHour); 
-            LOGGER.info("[SCHEDULE JOBS][BOOTUP][UTC_FILTERING]: Fetching jobs for UTC hours {} (mask={})", 
-                       currentHour, hourMask);
-            
+
+
+            // Create hour bitmask (DST-aware during transition periods)
+            long hourMask = calculateHourMask(currentHour);
+            LOGGER.info("[SCHEDULE JOBS][BOOTUP][UTC_FILTERING]: Fetching jobs for hour mask {} (current UTC hour: {})",
+                       hourMask, currentHour);
+
             long fetchStart = System.currentTimeMillis();
             this.recurringJobs = storageProvider.getRecurringJobsByHours(hourMask);
             long fetchEnd = System.currentTimeMillis();
@@ -128,20 +174,46 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         }
 
 
-        // Calculate hour mask for current cache validation
-        long hourMask = (1L << currentHour);
-        
+        // Calculate hour mask for current cache validation (DST-aware during transition periods)
+        long hourMask = calculateHourMask(currentHour);
+
         //This logic checks if the recurring jobs have been updated in the database
         //If the hash of the jobs in the database is same as in memory, we don't need to fetch the jobs again
         if (!storageProvider.recurringJobsUpdatedByHours(recurringJobs.getLastModifiedHash(), hourMask)) {
             LOGGER.info("[SCHEDULE JOBS][RECURRING JOB HASH]: Hour-filtered recurring jobs have not been updated in the database. We can use the cached jobs.");
             return recurringJobs;
         }
-    
+
+
         /*
-         If we are here, we need to fetch the jobs again, becuase the hash has changed of the db
-         But we don't need to fetch all the jobs again, we can just fetch the jobs that are in the time window
-         We do need to fetch the hashes of the windows again.
+         If we are here, we need to fetch the jobs again, because the hash has changed in the db.
+         By default, we do a simple full refresh with hour filtering (since hour filtering already
+         dramatically reduces the dataset). Window-based fetching is overkill for most cases.
+        */
+
+        boolean useWindowFetch = System.getenv("JOBRUNR_FETCH_WINDOWS") != null
+                                 ? Boolean.parseBoolean(System.getenv("JOBRUNR_FETCH_WINDOWS"))
+                                 : false;
+
+        if (!useWindowFetch) {
+            // Default behavior: Simple full refresh with hour filtering
+            LOGGER.info("[SCHEDULE JOBS][REFRESH][UTC_FILTERING]: Doing simple hour-filtered refresh for mask {} (current UTC hour: {})",
+                       hourMask, currentHour);
+
+            long fetchStart = System.currentTimeMillis();
+            this.recurringJobs = storageProvider.getRecurringJobsByHours(hourMask);
+            long fetchEnd = System.currentTimeMillis();
+
+            LOGGER.info("[SCHEDULE JOBS][REFRESH][UTC FILTERING]: Hour-filtered refresh completed in {}ms, fetched {} jobs",
+                       (fetchEnd - fetchStart), recurringJobs.size());
+
+            return recurringJobs;
+        }
+
+        /*
+         JOBRUNR_FETCH_WINDOWS is enabled: Use optimized window-based fetching.
+         This fetches only the time windows that have changed, rather than all jobs.
+         Only useful for extremely large datasets with millions of jobs.
         */
 
         LOGGER.info("[SCHEDULE JOBS][RECURRING JOB HASH]: The hour-filtered recurring jobs have changed in the database. We need to fetch the hash windows again.");
@@ -281,114 +353,4 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     private void registerRecurringJobRun(RecurringJob recurringJob, Instant upUntil) {
         recurringJobRuns.put(recurringJob.getId(), upUntil);
     }
-    
-
-
-    //Audit function
-    // private void logHourlyJobDistribution() {
-    //     try {
-    //         List<RecurringJob> jobs = getRecurringJobs();
-    //         int[] hourCounts = new int[24];
-            
-    //         for (RecurringJob job : jobs) {
-    //             try {
-    //                 String cronExpression = job.getScheduleExpression();
-    //                 if (cronExpression != null) {
-    //                     int[] hours = parseHoursFromCron(cronExpression);
-    //                     for (int hour : hours) {
-    //                         if (hour >= 0 && hour < 24) {
-    //                             hourCounts[hour]++;
-    //                         }
-    //                     }
-    //                 }
-    //             } catch (Exception e) {
-    //                 LOGGER.warn("Failed to parse cron for job: " + job.getId(), e);
-    //             }
-    //         }
-            
-    //         // Log the distribution
-    //         StringBuilder auditLog = new StringBuilder("[AUDIT]: Hourly job distribution - [");
-    //         for (int i = 0; i < 24; i++) {
-    //             if (i > 0) auditLog.append(", ");
-    //             auditLog.append(i).append(":").append(hourCounts[i]);
-    //         }
-    //         auditLog.append("]");
-    //         LOGGER.info(auditLog.toString());
-            
-    //     } catch (Exception e) {
-    //         LOGGER.error("Failed to log hourly job distribution audit", e);
-    //     }
-    // }
-
-    // private int[] parseHoursFromCron(String cronExpression) {
-    //     try {
-    //         String[] parts = cronExpression.trim().split("\\s+");
-            
-    //         // Determine if this is 5-field or 6-field cron and get hour field
-    //         String hourPart;
-    //         if (parts.length == 5) {
-    //             // Standard 5-field cron: minute hour day-of-month month day-of-week
-    //             hourPart = parts[1];
-    //         } else if (parts.length == 6) {
-    //             // 6-field cron with seconds: second minute hour day-of-month month day-of-week
-    //             hourPart = parts[2];
-    //         } else {
-    //             return new int[0]; // Return empty array for invalid cron
-    //         }
-            
-    //         if ("*".equals(hourPart)) {
-    //             return new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
-    //         } else if (hourPart.contains(",")) {
-    //             String[] hours = hourPart.split(",");
-    //             return Arrays.stream(hours).mapToInt(h -> Integer.parseInt(h.trim())).toArray();
-    //         } else {
-    //             return new int[]{Integer.parseInt(hourPart)};
-    //         }
-    //     } catch (Exception e) {
-    //         return new int[0]; // Return empty array for parsing failures
-    //     }
-    // }
 }
-
-
-
-
-
-/*  BATCH FETCH
-    if (totalJobs > 1000_000) {
-        // Use batched loading for large datasets
-        LOGGER.info("[BOOTUP]: Large dataset detected (" + totalJobs + " jobs). Using batched loading with 1M batch size.");
-        List<RecurringJob> allJobs = new ArrayList<>();
-        int batchSize = 1000_000;
-        long offset = 0;
-        int batchNumber = 1;
-        long totalFetchTime = 0;
-        long totalJobsLoaded = 0;
-        
-        while (offset < totalJobs) {
-            long batchStart = System.currentTimeMillis();
-            List<RecurringJob> batch = storageProvider.getRecurringJobsBatch(offset, batchSize);
-            long batchEnd = System.currentTimeMillis();
-            long batchDuration = batchEnd - batchStart;
-            totalFetchTime += batchDuration;
-            totalJobsLoaded += batch.size();
-            
-            allJobs.addAll(batch);
-            
-            // Calculate progress percentage
-            double progressPercent = Math.min(100.0, (double) totalJobsLoaded / totalJobs * 100.0);
-            
-            LOGGER.info("[BOOTUP]: Batch " + batchNumber + " - offset=" + offset + 
-                    " fetched=" + batch.size() + " jobs in " + batchDuration + "ms" +
-                    " | Progress: " + String.format("%.1f", progressPercent) + "% (" + 
-                    totalJobsLoaded + "/" + totalJobs + ")");
-            
-            offset += batchSize;
-            batchNumber++;
-        }
-        
-        this.recurringJobs = new RecurringJobsResult(allJobs);
-        LOGGER.info("[BOOTUP]: Batched loading completed. Total jobs loaded: " + allJobs.size() + 
-                " in " + totalFetchTime + "ms across " + (batchNumber - 1) + " batches (100.0%)");
-    } 
-*/
