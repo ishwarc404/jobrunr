@@ -21,7 +21,9 @@ public class ProcessOrphanedJobsTask extends AbstractJobZooKeeperTask {
         this.pageRequestSize = backgroundJobServer.getConfiguration().getOrphanedJobsRequestSize();
         // this.serverTimeoutDuration = backgroundJobServer.getConfiguration().getPollInterval().multipliedBy(backgroundJobServer.getConfiguration().getServerTimeoutPollIntervalMultiplicand());
         /*
-         * Updating this to handle long running jobs
+         * Updating this to handle long running jobs.
+         * Orphan jobs = jobs which were spawned by servers who are now dead. If we have a really large value we will not know if a server is dead.
+         * We need to have a very short value ideally like a few minutes at max
          */
         
         this.serverTimeoutDuration = Duration.ofMinutes(
@@ -29,12 +31,12 @@ public class ProcessOrphanedJobsTask extends AbstractJobZooKeeperTask {
                 .map(timeout -> {
                     try {
                         int minutes = Integer.parseInt(timeout);
-                        return Math.max(1, Math.min(minutes, 1440)); // Clamp between 1-1440 minutes (1 day)
+                        return Math.max(1, Math.min(minutes, 10)); // Clamp between 1-10 minutes
                     } catch (NumberFormatException e) {
-                        return 20;
+                        return 2; //Default to 2
                     }
                 })
-                .orElse(20)
+                .orElse(2)
         );
     }
 

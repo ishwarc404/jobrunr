@@ -693,4 +693,9 @@ public class JedisRedisStorageProvider extends AbstractStorageProvider implement
     public Map<String, Long> recurringJobsExistsByHours(long hourMask, StateName... states) {
         return null; // Not implemented for JedisRedisStorageProvider
     }
+
+    @Override
+    public List<Job> getLongRunningJobs(Duration minDuration, Instant updatedAfter) {
+        return null; // Not implemented for JedisRedisStorageProvider
+    }
 }

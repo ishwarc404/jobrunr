@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-
+import java.time.Duration;
 import static java.lang.Long.parseLong;
 import static java.util.Arrays.asList;
 import static java.util.Comparator.comparing;
@@ -403,5 +403,9 @@ public class InMemoryStorageProvider extends AbstractStorageProvider {
 
     public long countRecurringJobs() {
         return 0L;
+    }
+
+    public List<Job> getLongRunningJobs(Duration minDuration, Instant updatedAfter) {
+        return null; 
     }
 }

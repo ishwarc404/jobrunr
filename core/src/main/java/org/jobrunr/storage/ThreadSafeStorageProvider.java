@@ -150,6 +150,11 @@ public class ThreadSafeStorageProvider implements StorageProvider {
     }
 
     @Override
+    public List<Job> getLongRunningJobs(Duration minDuration, Instant updatedAfter) {
+        return storageProvider.getLongRunningJobs(minDuration, updatedAfter);
+    }
+
+    @Override
     public List<Job> getJobsToProcess(BackgroundJobServer backgroundJobServer, AmountRequest amountRequest) {
         return storageProvider.getJobsToProcess(backgroundJobServer, amountRequest);
     }

@@ -38,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.TimeZone;
+import java.time.Duration;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.jobrunr.jobs.states.StateName.PROCESSING;
@@ -303,6 +304,38 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
             LOGGER.info("[FETCHED SCHEDULED JOBS]: Fetched " + savedJobs.size() + " jobs in: " + duration + "ms");
             return savedJobs;
         } catch (SQLException e) {
+            throw new StorageException(e);
+        }
+    }
+
+    @Override
+    public List<Job> getLongRunningJobs(Duration minDuration, Instant updatedAfter) {
+        String sql =
+            "SELECT jobAsJson " +
+            "  FROM jobrunr_jobs " +
+            " WHERE (state = 'ENQUEUED' OR state = 'PROCESSING') " +
+            "   AND scheduledAt IS NULL " +
+            "   AND updatedAt >= ? " +
+            "   AND TIMESTAMPDIFF(SECOND, createdAt, updatedAt) > ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setTimestamp(1, Timestamp.from(updatedAfter));
+            ps.setLong(2, minDuration.getSeconds());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                List<Job> jobs = new ArrayList<>();
+                while (rs.next()) {
+                    String jobAsJson = rs.getString("jobAsJson");
+                    Job job = jobMapper.deserializeJob(jobAsJson);
+                    jobs.add(job);
+                }
+                return jobs;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.error("Error running getLongRunningJobs", e);
             throw new StorageException(e);
         }
     }

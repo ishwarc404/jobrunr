@@ -21,6 +21,7 @@ import org.jobrunr.server.tasks.startup.ShutdownExecutorServiceTask;
 import org.jobrunr.server.tasks.startup.StartupTask;
 import org.jobrunr.server.tasks.zookeeper.DeleteDeletedJobsPermanentlyTask;
 import org.jobrunr.server.tasks.zookeeper.DeleteSucceededJobsTask;
+import org.jobrunr.server.tasks.zookeeper.LongRunningJobsTask;
 import org.jobrunr.server.tasks.zookeeper.ProcessOrphanedJobsTask;
 import org.jobrunr.server.tasks.zookeeper.ProcessRecurringJobsTask;
 import org.jobrunr.server.tasks.zookeeper.ProcessScheduledJobsTask;
@@ -366,8 +367,17 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         JobZooKeeper orphanedJobsZooKeeper = new JobZooKeeper(this, new ProcessOrphanedJobsTask(this));
         /*
          * Added heartbeat zookeeper here, to update in progress jobs
+         *   UpdateJobsInProgressZooKeeperTask (the commented-out one):
+                - Fetches ALL jobs in PROCESSING across ALL servers
+                - Blindly updates their timestamps
+                - Can't detect if a job is stuck!
+                - If the worker thread is frozen/crashed, this task would still update the timestamp
+                - Orphan detection becomes useless
          */
+
+        //The below line was commented out as the master does not process any jobs now
         // JobZooKeeper inProgressZookeeper = new JobZooKeeper(this, new UpdateJobsInProgressZooKeeperTask(this));
+        JobZooKeeper longRunningJobsZooKeeper = new JobZooKeeper(this, new LongRunningJobsTask(this));
         JobZooKeeper janitorZooKeeper = new JobZooKeeper(this, new DeleteSucceededJobsTask(this), new DeleteDeletedJobsPermanentlyTask(this));
         LOGGER.info("[ZOOKEEPER]: JobZooKeepers created successfully");
         
@@ -376,6 +386,9 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         zookeeperThreadPool.scheduleWithFixedDelay(scheduledJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(orphanedJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         // zookeeperThreadPool.scheduleWithFixedDelay(inProgressZookeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
+
+        //We need to run it less frequently
+        zookeeperThreadPool.scheduleWithFixedDelay(longRunningJobsZooKeeper, delay, configuration.getPollInterval().toMillis() * 2, TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(janitorZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         LOGGER.info("[ZOOKEEPER]: JobZooKeepers scheduled successfully");
     }
