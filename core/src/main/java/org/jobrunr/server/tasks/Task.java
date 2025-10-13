@@ -46,7 +46,7 @@ public abstract class Task {
             this.runInfo = runInfo;
             // We need to make sure we finish PROCESS RECURRING TASKS before poll interval gets over
             if (pollIntervalInSecondsTimeBoxIsAboutToPass()){
-                LOGGER.info("[ZOOKEEPER][TIMEOUT]: Poll interval in seconds time box is about to pass. Returning.");
+                LOGGER.warn("[ZOOKEEPER][TIMEOUT]: Poll interval in seconds time box is about to pass. Returning.");
                 return;
             }
             long startTime = System.nanoTime();

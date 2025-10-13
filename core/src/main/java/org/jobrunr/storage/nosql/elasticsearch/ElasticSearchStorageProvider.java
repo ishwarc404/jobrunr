@@ -907,4 +907,9 @@ public class ElasticSearchStorageProvider extends AbstractStorageProvider implem
     public Map<String, Long> recurringJobsExistsByHours(long hourMask, StateName... states) {
         return null; // Not implemented for ElasticSearchStorageProvider
     }
+
+    @Override
+    public List<Job> getLongRunningJobs(java.time.Duration minDuration, Instant updatedAfter) {
+        return null; // Not implemented for ElasticSearchStorageProvider
+    }
 }

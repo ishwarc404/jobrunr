@@ -163,6 +163,20 @@ public interface StorageProvider extends AutoCloseable {
      */
     List<Job> getJobList(StateName state, AmountRequest amountRequest);
 
+    /**
+     * Returns jobs that have been running longer than the specified minimum duration.
+     * Only includes jobs that:
+     * - Are in ENQUEUED or PROCESSING state
+     * - Have scheduledAt as NULL (not scheduled jobs)
+     * - Were updated recently (updatedAt >= updatedAfter)
+     * - Have been running longer than minDuration (updatedAt - createdAt > minDuration)
+     *
+     * @param minDuration  the minimum duration a job must be running to be included
+     * @param updatedAfter only include jobs updated after this instant (to filter out stale jobs)
+     * @return a list of long-running jobs matching the criteria
+     */
+    List<Job> getLongRunningJobs(Duration minDuration, Instant updatedAfter);
+
     default Page<Job> getJobs(StateName state, PageRequest pageRequest) {
         long totalJobs = countJobs(state);
         if (totalJobs == 0) return pageRequest.emptyPage();

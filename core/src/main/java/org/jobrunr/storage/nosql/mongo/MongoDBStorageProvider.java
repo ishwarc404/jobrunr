@@ -609,4 +609,9 @@ public class MongoDBStorageProvider extends AbstractStorageProvider implements N
         return null; // Not implemented for MongoDBStorageProvider
     }
 
+    @Override
+    public List<Job> getLongRunningJobs(java.time.Duration minDuration, Instant updatedAfter) {
+        return null; // Not implemented for MongoDBStorageProvider
+    }
+
 }
