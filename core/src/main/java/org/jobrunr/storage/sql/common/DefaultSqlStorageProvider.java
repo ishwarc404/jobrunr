@@ -474,6 +474,9 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
         }
     }
     
+    /*
+    This function is called from ProcessRecurringJobsTask on server startup
+    */
     public Instant getLastSucceedJobUpdateTime() {
         String sql = "SELECT updatedAt FROM jobrunr_jobs WHERE state = 'SUCCEEDED' ORDER BY updatedAt DESC LIMIT 1";
     
@@ -488,8 +491,6 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
                 Timestamp timestamp = rs.getTimestamp("updatedAt", utcCalendar);
                 return timestamp.toInstant();
             } else {
-                // No succeeded jobs found, return epoch or throw exception depending on your logic
-                LOGGER.warn("No SUCCEEDED jobs found in jobrunr_jobs.");
                 return Instant.EPOCH;
             }
     

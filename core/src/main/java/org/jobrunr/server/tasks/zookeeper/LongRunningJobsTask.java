@@ -2,9 +2,11 @@ package org.jobrunr.server.tasks.zookeeper;
 
 import org.jobrunr.jobs.Job;
 import org.jobrunr.server.BackgroundJobServer;
+import org.jobrunr.utils.mapper.JsonMapper;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,9 +14,11 @@ public class LongRunningJobsTask extends AbstractJobZooKeeperTask {
 
     private final Duration longRunningThreshold;
     private final Duration recentlyUpdatedWindow;
+    private final JsonMapper jsonMapper;
 
     public LongRunningJobsTask(BackgroundJobServer backgroundJobServer) {
         super(backgroundJobServer);
+        this.jsonMapper = backgroundJobServer.getJsonMapper();
 
         // Threshold for considering a job as long-running (default: 5 minutes)
         this.longRunningThreshold = Duration.ofMinutes(
@@ -47,23 +51,61 @@ public class LongRunningJobsTask extends AbstractJobZooKeeperTask {
             return;
         }
 
-        LOGGER.info("[LONG RUNNING JOB]: Found {} long-running jobs", longRunningJobs.size());
+        // Summary log
+        logSummary(longRunningJobs);
 
-        for (Job job : longRunningJobs) {
-            logLongRunningJob(job);
-        }
+        // JSON structured log
+        logJsonSummary(longRunningJobs);
     }
 
-    private void logLongRunningJob(Job job) {
-        Duration jobDuration = Duration.between(job.getCreatedAt(), job.getUpdatedAt());
-        long durationMinutes = jobDuration.toMinutes();
+    private void logSummary(List<Job> longRunningJobs) {
+        StringBuilder summary = new StringBuilder();
+        summary.append(String.format("[LONG RUNNING JOB SUMMARY]: Found %d jobs exceeding %dm threshold | ",
+            longRunningJobs.size(),
+            longRunningThreshold.toMinutes()));
 
-        LOGGER.info("[LONG RUNNING JOB] [id:{}] [recurringJobId:{}] [jobName:{}] [state:{}] [duration:{}m] Job has been running for longer than threshold ({}m)",
-                job.getId(),
-                job.getRecurringJobId().orElse(null),
-                job.getJobName(),
-                job.getState(),
-                durationMinutes,
-                longRunningThreshold.toMinutes());
+        LOGGER.warn(summary.toString());
+    }
+
+    private void logJsonSummary(List<Job> longRunningJobs) {
+        LongRunningJobsReport report = new LongRunningJobsReport();
+        report.count = longRunningJobs.size();
+        report.thresholdMinutes = longRunningThreshold.toMinutes();
+        report.jobs = new ArrayList<>();
+
+        for (Job job : longRunningJobs) {
+            Duration jobDuration = Duration.between(job.getCreatedAt(), job.getUpdatedAt());
+
+            JobInfo jobInfo = new JobInfo();
+            jobInfo.id = job.getId().toString();
+            jobInfo.recurringJobId = job.getRecurringJobId().orElse(null);
+            jobInfo.jobName = job.getJobName();
+            jobInfo.state = job.getState().toString();
+            jobInfo.durationMinutes = jobDuration.toMinutes();
+            jobInfo.createdAt = job.getCreatedAt().toString();
+            jobInfo.updatedAt = job.getUpdatedAt().toString();
+
+            report.jobs.add(jobInfo);
+        }
+
+        String json = jsonMapper.serialize(report);
+        LOGGER.warn("[LONG RUNNING JOB JSON]: {}", json);
+    }
+
+    // DTOs for JSON serialization
+    private static class LongRunningJobsReport {
+        public int count;
+        public long thresholdMinutes;
+        public List<JobInfo> jobs;
+    }
+
+    private static class JobInfo {
+        public String id;
+        public String recurringJobId;
+        public String jobName;
+        public String state;
+        public long durationMinutes;
+        public String createdAt;
+        public String updatedAt;
     }
 }
