@@ -388,7 +388,7 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         // zookeeperThreadPool.scheduleWithFixedDelay(inProgressZookeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
 
         //We need to run it less frequently
-        zookeeperThreadPool.scheduleWithFixedDelay(longRunningJobsZooKeeper, delay, configuration.getPollInterval().toMillis() * 2, TimeUnit.MILLISECONDS);
+        zookeeperThreadPool.scheduleWithFixedDelay(longRunningJobsZooKeeper, delay, configuration.getPollInterval().toMillis() * 20, TimeUnit.MILLISECONDS);
         zookeeperThreadPool.scheduleWithFixedDelay(janitorZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
         LOGGER.info("[ZOOKEEPER]: JobZooKeepers scheduled successfully");
     }
