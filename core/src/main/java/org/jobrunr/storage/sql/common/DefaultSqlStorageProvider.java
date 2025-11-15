@@ -536,6 +536,8 @@ public class DefaultSqlStorageProvider extends AbstractStorageProvider implement
     public boolean recurringJobsUpdatedByHours(Long recurringJobsUpdatedHash, long hourMask) {
         try (final Connection conn = dataSource.getConnection()) {
             Long currentHash = recurringJobTable(conn).selectHashByHourMask(hourMask);
+            LOGGER.info("[RECURRING JOBS HASH]: In-memory Hash: " + recurringJobsUpdatedHash);
+            LOGGER.info("[RECURRING JOBS HASH]: Fetched Hash: " + currentHash);
             return !recurringJobsUpdatedHash.equals(currentHash);
         } catch (SQLException e) {
             throw new StorageException(e);

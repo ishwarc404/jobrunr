@@ -51,7 +51,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
     @Override
     protected void runTask() {
         long taskStart = System.currentTimeMillis();
-        LOGGER.info("[SCHEDULE JOBS]: Starting task to schedule recurring jobs.");        
+        LOGGER.info("[SCHEDULE JOBS]: Starting task to schedule recurring jobs. Version: 11-15-2025-v1");        
         Instant initialRunStartTime = runStartTime();
         Instant from = initialRunStartTime;        
         Instant upUntil = runStartTime().plus(backgroundJobServerConfiguration().getPollInterval());
@@ -66,6 +66,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
             LOGGER.info("[SCHEDULE JOBS][FLUXCAPACITOR]: One minute ago: " + oneMinuteAgo);
             // Time travel to the last success time
             initialRunStartTime = oneMinuteAgo.isAfter(lastSuccess) ? oneMinuteAgo : lastSuccess;
+            from = initialRunStartTime; //Update the from time
             LOGGER.info("[SCHEDULE JOBS][FLUXCAPACITOR]: Time travelling to: " + initialRunStartTime);
             this.amIMaster = true; // set this instance as the master instance only in the context of ProcessRecurringJobsTask
         } 
@@ -101,7 +102,8 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
         //This code fetches the existing jobs in the database which are already scheduled, enqueued or processing
         existingJobsById = fetchExistingCountsByHours(hourMask); //optimized for hour-based filtering
 
-        final Instant finalFrom = from;                                                                                                                                            
+        final Instant finalFrom = from;     
+        LOGGER.info("[SCHEDULE JOBS][FLUXCAPACITOR]: Time travelling to, final from time: " + finalFrom);                                                                                                                                       
         convertAndProcessManyJobs(recurringJobs,
                 recurringJob -> toScheduledJobs(recurringJob, finalFrom, upUntil),
                 totalAmountOfJobs -> LOGGER.debug("[SCHEDULE JOBS]: Found {} jobs to schedule from {} recurring jobs", totalAmountOfJobs, recurringJobs.size()));
@@ -151,7 +153,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
             if (fetchedHour == null) {
                 LOGGER.info("[SCHEDULE JOBS][BOOTUP]: Boot up time, fetching recurring jobs for UTC hour filtering.");
             } else {
-                LOGGER.info("[SCHEDULE JOBS][BOOTUP][HOUR CHANGE]: UTC hour changed from {} to {}, refreshing job cache", fetchedHour, currentHour);
+                LOGGER.info("[SCHEDULE JOBS][BOOTUP][HOUR CHANGE]: UTC hour changed from {} to {}, refreshing job cache, or recurring jobs maybe be empty for this hour", fetchedHour, currentHour);
             }
 
 
@@ -167,6 +169,8 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
             // Update fetchedHour to current hour after successful fetch
             fetchedHour = currentHour;
             
+            //If this value is -1, then there are no recurringJobs for that hour.
+            LOGGER.info("[SCHEDULE JOBS][BOOTUP][UTC FILTERING]: Hour-filtered fetch hash: " + recurringJobs.getLastModifiedHash());
             LOGGER.info("[SCHEDULE JOBS][BOOTUP][UTC FILTERING]: Hour-filtered fetch duration: " + (fetchEnd - fetchStart) + "ms");
             LOGGER.info("[SCHEDULE JOBS][BOOTUP][UTC FILTERING]: Hour-filtered fetch size: " + recurringJobs.size());
             
@@ -204,6 +208,7 @@ public class ProcessRecurringJobsTask extends AbstractJobZooKeeperTask {
             this.recurringJobs = storageProvider.getRecurringJobsByHours(hourMask);
             long fetchEnd = System.currentTimeMillis();
 
+            LOGGER.info("[SCHEDULE JOBS][REFRESH][UTC FILTERING]: Hour-filtered fetch hash: " + recurringJobs.getLastModifiedHash());
             LOGGER.info("[SCHEDULE JOBS][REFRESH][UTC FILTERING]: Hour-filtered refresh completed in {}ms, fetched {} jobs",
                        (fetchEnd - fetchStart), recurringJobs.size());
 

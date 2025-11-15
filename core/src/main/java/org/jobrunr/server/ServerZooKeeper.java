@@ -116,6 +116,13 @@ public class ServerZooKeeper implements Runnable {
     }
 
     private void determineIfCurrentBackgroundJobServerIsMaster() {
+        
+        // We do not need to check for longest server running as there is no longer master election happening.
+        if (!"master".equals(System.getenv("JOBRUNR_SERVER_GROUP"))) {
+            backgroundJobServer.setIsMaster(false);
+            return;
+        }
+
         UUID longestRunningBackgroundJobServerId = storageProvider.getLongestRunningBackgroundJobServerId();
         if (this.masterId == null || !masterId.equals(longestRunningBackgroundJobServerId)) {
             this.masterId = longestRunningBackgroundJobServerId;

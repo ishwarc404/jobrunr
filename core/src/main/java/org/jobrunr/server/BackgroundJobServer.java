@@ -351,12 +351,8 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         // Taking care of processing and scheduling jobs
         LOGGER.info("[ZOOKEEPER]: Creating ProcessRecurringJobsTask...");
         ProcessRecurringJobsTask processRecurringJobsTask = new ProcessRecurringJobsTask(this);
-        LOGGER.info("[ZOOKEEPER]: ProcessRecurringJobsTask created successfully");
-        
         LOGGER.info("[ZOOKEEPER]: Creating ProcessScheduledJobsTask...");
         ProcessScheduledJobsTask processScheduledJobsTask = new ProcessScheduledJobsTask(this);
-        LOGGER.info("[ZOOKEEPER]: ProcessScheduledJobsTask created successfully");
-        
         LOGGER.info("[ZOOKEEPER]: Creating JobZooKeepers...");
         /*
          * Broke recurring and scheduled jobs into seperate tasks, as we can execute them to completely 
@@ -375,11 +371,11 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
                 - Orphan detection becomes useless
          */
 
+
         //The below line was commented out as the master does not process any jobs now
         // JobZooKeeper inProgressZookeeper = new JobZooKeeper(this, new UpdateJobsInProgressZooKeeperTask(this));
         JobZooKeeper longRunningJobsZooKeeper = new JobZooKeeper(this, new LongRunningJobsTask(this));
         JobZooKeeper janitorZooKeeper = new JobZooKeeper(this, new DeleteSucceededJobsTask(this), new DeleteDeletedJobsPermanentlyTask(this));
-        LOGGER.info("[ZOOKEEPER]: JobZooKeepers created successfully");
         
         LOGGER.info("[ZOOKEEPER]: Scheduling JobZooKeepers...");
         zookeeperThreadPool.scheduleWithFixedDelay(recurringJobsZooKeeper, delay, configuration.getPollInterval().toMillis(), TimeUnit.MILLISECONDS);
